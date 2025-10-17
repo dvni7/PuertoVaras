@@ -1,0 +1,421 @@
+/*
+ * Custom project interface (robot control dashboard)
+ */
+
+const uint8_t index_project_html[] = R"=====(<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>ESP32-CAM Robot Control</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body { margin:0; background:#020202; color:#22c55e; font-family:'Courier New',Consolas,monospace; min-height:100vh; }
+      a { color:#34d399; text-decoration:none; }
+      a:hover { text-decoration:underline; }
+      button { font-family:inherit; color:inherit; background:none; cursor:pointer; }
+      .wrapper { min-height:100vh; padding:1.5rem; display:flex; flex-direction:column; gap:1rem; }
+      .hud-header, .hud-footer, .panel { border:2px solid #22c55e; background:rgba(0,0,0,0.75); padding:1rem; box-shadow:0 0 18px rgba(34,197,94,0.15); }
+      .hud-header { display:flex; flex-wrap:wrap; justify-content:space-between; gap:1rem; }
+      .hud-title h1 { margin:0; font-size:1.6rem; letter-spacing:0.1em; }
+      .hud-title p { margin:0.35rem 0 0; font-size:0.85rem; color:#16a34a; letter-spacing:0.08em; }
+      .hud-telemetry { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); gap:0.75rem; font-size:0.9rem; text-transform:uppercase; justify-items:end; }
+      .hud-telemetry span.value { font-weight:700; margin-left:0.35rem; }
+      .hud-grid { flex:1; display:grid; grid-template-columns:1fr 1.8fr 1fr; gap:1rem; min-height:0; }
+      .panel { display:flex; flex-direction:column; gap:1rem; }
+      .panel h2 { margin:0; font-size:1.1rem; letter-spacing:0.08em; text-transform:uppercase; border-bottom:1px solid rgba(34,197,94,0.4); padding-bottom:0.5rem; }
+      .section-title { font-size:0.85rem; color:#16a34a; letter-spacing:0.08em; margin-bottom:0.5rem; text-transform:uppercase; }
+      .direction-grid { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:0.5rem; }
+      .rotation-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:0.5rem; }
+      .control-button { border:2px solid #22c55e; padding:0.75rem; background:rgba(12,60,28,0.2); text-transform:uppercase; letter-spacing:0.08em; transition:all 0.18s ease; font-weight:600; }
+      .control-button:hover { background:rgba(34,197,94,0.18); }
+      .control-button.active { box-shadow:0 0 18px rgba(34,197,94,0.4); background:rgba(34,197,94,0.3); }
+      .control-button.stop { border-color:#f87171; color:#fca5a5; background:rgba(127,29,29,0.25); }
+      .control-button.stop:hover { background:rgba(239,68,68,0.35); }
+      .control-button.stop.active { box-shadow:0 0 18px rgba(239,68,68,0.4); }
+      .status-chip { display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.08em; }
+      .status-dot { width:0.6rem; height:0.6rem; border-radius:50%; background:#f97316; box-shadow:0 0 8px rgba(249,115,22,0.8); }
+      .status-dot.active { background:#22c55e; box-shadow:0 0 8px rgba(34,197,94,0.9); }
+      .info-block { border:1px solid rgba(34,197,94,0.4); padding:0.75rem; font-size:0.8rem; line-height:1.5; background:rgba(34,197,94,0.05); }
+      .feed-header { display:flex; justify-content:space-between; align-items:center; gap:0.75rem; }
+      .toggle-button { border:2px solid #22c55e; padding:0.55rem 0.9rem; text-transform:uppercase; letter-spacing:0.1em; transition:all 0.18s ease; background:rgba(34,197,94,0.15); }
+      .toggle-button.active { background:#22c55e; color:#04140a; box-shadow:0 0 18px rgba(34,197,94,0.4); }
+      .stream-wrapper { position:relative; border:2px solid #22c55e; flex:1; overflow:hidden; display:flex; align-items:center; justify-content:center; background:#000; min-height:0; }
+      .stream-wrapper img { width:100%; height:100%; object-fit:contain; background:#000; }
+      .overlay-grid { position:absolute; inset:0; pointer-events:none; background-image:linear-gradient(rgba(34,197,94,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(34,197,94,0.12) 1px, transparent 1px); background-size:40px 40px; mix-blend-mode:screen; }
+      .scan-line { position:absolute; left:0; right:0; height:2px; background:rgba(34,197,94,0.6); box-shadow:0 0 12px rgba(34,197,94,0.8); animation:scan 5s linear infinite; opacity:0.8; }
+      @keyframes scan { 0% { top:-10%; } 100% { top:110%; } }
+      .crosshair { position:absolute; top:50%; left:50%; width:140px; height:140px; transform:translate(-50%, -50%); pointer-events:none; }
+      .crosshair::before, .crosshair::after { content:""; position:absolute; border:2px solid rgba(34,197,94,0.6); border-radius:50%; }
+      .crosshair::before { inset:0; }
+      .crosshair::after { inset:18px; opacity:0.4; }
+      .crosshair span { position:absolute; background:#22c55e; }
+      .crosshair span:nth-child(1), .crosshair span:nth-child(2) { width:2px; height:24px; left:50%; transform:translateX(-50%); }
+      .crosshair span:nth-child(1) { top:0; }
+      .crosshair span:nth-child(2) { bottom:0; }
+      .crosshair span:nth-child(3), .crosshair span:nth-child(4) { height:2px; width:24px; top:50%; transform:translateY(-50%); }
+      .crosshair span:nth-child(3) { left:0; }
+      .crosshair span:nth-child(4) { right:0; }
+      .feed-meta { position:absolute; top:1rem; left:1rem; display:grid; gap:0.4rem; font-size:0.75rem; text-transform:uppercase; }
+      .chip { background:rgba(0,0,0,0.75); border:1px solid rgba(34,197,94,0.5); padding:0.3rem 0.5rem; letter-spacing:0.08em; }
+      .feed-meta-right { position:absolute; top:1rem; right:1rem; }
+      .feed-location { position:absolute; bottom:1rem; left:50%; transform:translateX(-50%); display:flex; gap:0.6rem; font-size:0.75rem; }
+      .feed-footer { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:0.75rem; text-align:center; font-size:0.8rem; text-transform:uppercase; }
+      .feed-footer .chip { width:100%; }
+      .tilt-value { font-size:2.2rem; font-weight:700; display:flex; align-items:baseline; gap:0.3rem; margin-bottom:0.5rem; letter-spacing:0.05em; }
+      .tilt-value .unit { font-size:0.9rem; color:#16a34a; letter-spacing:0.08em; }
+      .tilt-visual { border:1px solid rgba(34,197,94,0.45); background:rgba(34,197,94,0.05); height:140px; position:relative; overflow:hidden; }
+      .tilt-axis { position:absolute; left:50%; bottom:10px; width:2px; height:120px; background:#22c55e; transform:translateX(-50%); }
+      .tilt-arm { position:absolute; left:50%; bottom:10px; width:2px; height:110px; background:#22c55e; transform-origin:bottom center; transform:rotate(0deg); transition:transform 0.25s ease; }
+      .tilt-arm::after { content:""; position:absolute; top:-10px; left:50%; width:14px; height:14px; border:2px solid #22c55e; transform:translate(-50%, -50%) rotate(45deg); background:#000; }
+      .tilt-buttons { display:grid; gap:0.5rem; }
+      .capture-button { padding:1.2rem 0.75rem; font-size:1rem; }
+      .capture-button.busy { background:rgba(34,197,94,0.35); box-shadow:0 0 24px rgba(34,197,94,0.6); }
+      .gallery-section { flex:1; display:flex; flex-direction:column; min-height:0; }
+      .gallery-header { display:flex; justify-content:space-between; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.08em; border-bottom:1px solid rgba(34,197,94,0.4); padding-bottom:0.35rem; }
+      .photo-list { list-style:none; margin:0; padding:0; margin-top:0.6rem; display:flex; flex-direction:column; gap:0.4rem; overflow-y:auto; flex:1; }
+      .photo-item { display:flex; justify-content:space-between; align-items:center; border:1px solid rgba(34,197,94,0.35); padding:0.4rem 0.5rem; background:rgba(34,197,94,0.05); font-size:0.75rem; }
+      .photo-item a { color:#6ee7b7; font-weight:600; letter-spacing:0.05em; }
+      .photo-meta { color:#16a34a; margin-left:0.5rem; letter-spacing:0.05em; }
+      .hud-footer { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:0.75rem; font-size:0.75rem; text-transform:uppercase; }
+      .hud-footer div { border:1px solid rgba(34,197,94,0.3); padding:0.5rem; text-align:center; background:rgba(34,197,94,0.05); letter-spacing:0.08em; }
+      @media (max-width: 1100px) {
+        .hud-grid { grid-template-columns:1fr; }
+        .hud-telemetry { grid-auto-flow:row; justify-items:flex-start; }
+      }
+      @media (max-width: 640px) {
+        .wrapper { padding:1rem; }
+        .hud-header, .hud-footer, .panel { padding:0.75rem; }
+        .hud-title h1 { font-size:1.3rem; }
+        .feed-footer { grid-template-columns:1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <header class="hud-header">
+        <div class="hud-title">
+          <h1 id="camera-name">ROBOT CONTROL SYSTEM</h1>
+          <p id="system-status">STATUS: INITIALIZING...</p>
+        </div>
+        <div class="hud-telemetry">
+          <div>POS X:<span class="value" id="pos-x">0.00</span></div>
+          <div>POS Y:<span class="value" id="pos-y">0.00</span></div>
+          <div>HEADING:<span class="value" id="robot-heading">0deg</span></div>
+          <div>CAM_ANGLE:<span class="value" id="header-camera-angle">0deg</span></div>
+          <div>PHOTOS:<span class="value" id="photo-count">0</span></div>
+        </div>
+      </header>
+      <main class="hud-grid">
+        <aside class="panel">
+          <h2>[ MOVEMENT CONTROL ]</h2>
+          <section>
+            <div class="section-title">&gt; DIRECTIONAL</div>
+            <div class="direction-grid">
+              <div></div>
+              <button class="control-button" data-command="forward">FWD</button>
+              <div></div>
+              <button class="control-button" data-command="left">LEFT</button>
+              <button class="control-button stop" data-command="stop">STOP</button>
+              <button class="control-button" data-command="right">RIGHT</button>
+              <div></div>
+              <button class="control-button" data-command="backward">BACK</button>
+              <div></div>
+            </div>
+          </section>
+          <section>
+            <div class="section-title">&gt; ROTATION</div>
+            <div class="rotation-grid">
+              <button class="control-button" data-command="rotate_left">ROT L</button>
+              <button class="control-button" data-command="rotate_right">ROT R</button>
+            </div>
+          </section>
+          <div class="info-block">
+            &gt; MOTOR STATUS<br>
+            LEFT: OPERATIONAL<br>
+            RIGHT: OPERATIONAL<br>
+            POWER: 89%
+          </div>
+          <div class="status-chip">
+            <span class="status-dot" id="robot-status"></span>
+            <span id="robot-motion">IDLE</span>
+          </div>
+        </aside>
+        <section class="panel">
+          <div class="feed-header">
+            <h2>[ CAMERA FEED ]</h2>
+            <button id="stream-toggle" class="toggle-button">START FEED</button>
+          </div>
+          <div class="stream-wrapper">
+            <div class="overlay-grid"></div>
+            <div class="scan-line"></div>
+            <div class="crosshair">
+              <span></span><span></span><span></span><span></span>
+            </div>
+            <img id="camera-stream" alt="Camera stream">
+            <div class="feed-meta">
+              <div class="chip" id="recording-indicator">REC &#9679; --:--:--</div>
+              <div class="chip" id="angle-indicator">ANGLE 0 deg</div>
+              <div class="chip">RES 1920x1080</div>
+            </div>
+            <div class="feed-meta-right">
+              <div class="chip" id="stream-fps">FPS 30</div>
+            </div>
+            <div class="feed-location">
+              <div class="chip">LAT 40.7128 deg N</div>
+              <div class="chip">LON 74.0060 deg W</div>
+            </div>
+          </div>
+          <div class="feed-footer">
+            <div class="chip">STREAM <span id="stream-state">OFFLINE</span></div>
+            <div class="chip">MOTION <span id="motion-readout">IDLE</span></div>
+            <div class="chip">LAMP <span id="lamp-readout">AUTO</span></div>
+          </div>
+        </section>
+        <aside class="panel">
+          <h2>[ CAMERA CONTROL ]</h2>
+          <section>
+            <div class="section-title">&gt; ANGLE</div>
+            <div class="tilt-value"><span id="camera-angle">0</span><span class="unit">deg</span></div>
+            <div class="tilt-visual">
+              <div class="tilt-axis"></div>
+              <div class="tilt-arm" id="camera-visual"></div>
+            </div>
+          </section>
+          <section>
+            <div class="section-title">&gt; TILT CONTROL</div>
+            <div class="tilt-buttons">
+              <button class="control-button" id="tilt-up">TILT UP</button>
+              <button class="control-button" id="tilt-down">TILT DOWN</button>
+            </div>
+          </section>
+          <section>
+            <div class="section-title">&gt; CAPTURE</div>
+            <button class="control-button capture-button" id="capture-photo">TAKE PHOTO</button>
+          </section>
+          <section class="gallery-section">
+            <div class="gallery-header">
+              <span>&gt; GALLERY</span>
+              <span id="local-photo-count">0</span>
+            </div>
+            <ul id="photo-list" class="photo-list"></ul>
+          </section>
+        </aside>
+      </main>
+      <footer class="hud-footer">
+        <div>CPU 34%</div>
+        <div>MEM 512MB/2GB</div>
+        <div>TEMP 42C</div>
+        <div id="uptime">UPTIME 00:00:00</div>
+      </footer>
+    </div>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        const baseHost = document.location.origin;
+        const streamImage = document.getElementById('camera-stream');
+        const streamToggle = document.getElementById('stream-toggle');
+        const streamState = document.getElementById('stream-state');
+        const motionReadout = document.getElementById('motion-readout');
+        const lampReadout = document.getElementById('lamp-readout');
+        const robotStatusDot = document.getElementById('robot-status');
+        const robotMotion = document.getElementById('robot-motion');
+        const posX = document.getElementById('pos-x');
+        const posY = document.getElementById('pos-y');
+        const robotHeading = document.getElementById('robot-heading');
+        const cameraAngleHeader = document.getElementById('header-camera-angle');
+        const cameraAngleValue = document.getElementById('camera-angle');
+        const cameraVisual = document.getElementById('camera-visual');
+        const photoCount = document.getElementById('photo-count');
+        const localPhotoCount = document.getElementById('local-photo-count');
+        const recordingIndicator = document.getElementById('recording-indicator');
+        const angleIndicator = document.getElementById('angle-indicator');
+        const systemStatus = document.getElementById('system-status');
+        const cameraName = document.getElementById('camera-name');
+        const photoList = document.getElementById('photo-list');
+        const captureButton = document.getElementById('capture-photo');
+        const tiltUp = document.getElementById('tilt-up');
+        const tiltDown = document.getElementById('tilt-down');
+        const uptime = document.getElementById('uptime');
+        let streamURL = '';
+        let streamActive = false;
+        const photoHistory = [];
+        const highlight = function(button) {
+          if (!button) return;
+          button.classList.add('active');
+          setTimeout(function(){ button.classList.remove('active'); }, 200);
+        };
+        const startStream = function() {
+          if (!streamURL) return;
+          streamImage.src = streamURL;
+          streamActive = true;
+          streamToggle.textContent = 'STOP FEED';
+          streamToggle.classList.add('active');
+          streamState.textContent = 'ONLINE';
+        };
+        const stopStream = function() {
+          window.stop();
+          streamImage.src = '';
+          streamActive = false;
+          streamToggle.textContent = 'START FEED';
+          streamToggle.classList.remove('active');
+          streamState.textContent = 'OFFLINE';
+        };
+        const sendCommand = async function(variable, value) {
+          const query = baseHost + '/control?var=' + encodeURIComponent(variable) + '&val=' + encodeURIComponent(value);
+          try {
+            await fetch(query);
+          } catch (err) {
+            console.warn('Command failed', err);
+          }
+        };
+        const updateTelemetry = function(data) {
+          if (!data) return;
+          if (data.cam_name) {
+            cameraName.textContent = 'ROBOT CONTROL :: ' + data.cam_name;
+            document.title = data.cam_name + ' :: Robot Control';
+          }
+          if (typeof data.stream_url === 'string' && data.stream_url.length) {
+            if (streamURL !== data.stream_url) {
+              const wasStreaming = streamActive;
+              streamURL = data.stream_url;
+              if (wasStreaming || !streamActive) {
+                startStream();
+              }
+            } else if (!streamActive) {
+              startStream();
+            }
+          }
+          if (typeof data.lamp === 'number') {
+            lampReadout.textContent = data.autolamp ? 'AUTO' : String(data.lamp);
+          }
+          const x = typeof data.robot_x === 'number' ? data.robot_x : parseFloat(data.robot_x || 0);
+          const y = typeof data.robot_y === 'number' ? data.robot_y : parseFloat(data.robot_y || 0);
+          posX.textContent = x.toFixed(2);
+          posY.textContent = y.toFixed(2);
+          const heading = typeof data.robot_heading === 'number' ? data.robot_heading : parseInt(data.robot_heading || 0, 10);
+          robotHeading.textContent = heading + ' deg';
+          const motion = (data.robot_motion || 'idle').toString().toUpperCase();
+          motionReadout.textContent = motion;
+          robotMotion.textContent = motion;
+          const active = data.robot_active ? true : false;
+          if (active) {
+            robotStatusDot.classList.add('active');
+          } else {
+            robotStatusDot.classList.remove('active');
+          }
+          const angle = typeof data.camera_tilt === 'number' ? data.camera_tilt : parseInt(data.camera_tilt || 0, 10);
+          cameraAngleHeader.textContent = angle + ' deg';
+          cameraAngleValue.textContent = angle;
+          cameraVisual.style.transform = 'translateX(-50%) rotate(' + angle + 'deg)';
+          angleIndicator.textContent = 'ANGLE ' + angle + ' deg';
+          if (typeof data.photos_taken === 'number') {
+            photoCount.textContent = data.photos_taken;
+          } else {
+            photoCount.textContent = photoHistory.length;
+          }
+          if (data.code_ver && data.rotate) {
+            systemStatus.textContent = 'STATUS: ONLINE | FW ' + data.code_ver + ' | ROT ' + data.rotate + ' deg';
+          } else {
+            systemStatus.textContent = 'STATUS: ONLINE';
+          }
+          const now = new Date();
+          recordingIndicator.textContent = 'REC \u2022 ' + now.toLocaleTimeString();
+          uptime.textContent = 'UPTIME ' + now.toLocaleTimeString();
+        };
+        const renderGallery = function() {
+          photoList.innerHTML = '';
+          localPhotoCount.textContent = photoHistory.length;
+          photoHistory.forEach(function(item, index){
+            const li = document.createElement('li');
+            li.className = 'photo-item';
+            const link = document.createElement('a');
+            link.href = item.url;
+            link.download = 'capture_' + item.timestamp + '.jpg';
+            link.textContent = 'IMG_' + String(photoHistory.length - index).padStart(4, '0');
+            link.title = item.label;
+            const meta = document.createElement('span');
+            meta.className = 'photo-meta';
+            meta.textContent = item.label;
+            li.appendChild(link);
+            li.appendChild(meta);
+            photoList.appendChild(li);
+          });
+        };
+        const addPhoto = function(url) {
+          const stamp = Date.now();
+          const label = new Date(stamp).toLocaleTimeString();
+          photoHistory.unshift({ url: url, timestamp: stamp, label: label });
+          if (photoHistory.length > 12) {
+            const removed = photoHistory.pop();
+            URL.revokeObjectURL(removed.url);
+          }
+          renderGallery();
+        };
+        const capturePhoto = async function() {
+          if (captureButton.classList.contains('busy')) return;
+          captureButton.classList.add('busy');
+          captureButton.textContent = 'CAPTURING...';
+          const wasStreaming = streamActive;
+          if (wasStreaming) stopStream();
+          try {
+            const response = await fetch(baseHost + '/capture?_cb=' + Date.now());
+            if (!response.ok) throw new Error('Capture failed');
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            addPhoto(url);
+          } catch (err) {
+            console.error('Capture error', err);
+          } finally {
+            captureButton.classList.remove('busy');
+            captureButton.textContent = 'TAKE PHOTO';
+            if (wasStreaming) setTimeout(startStream, 250);
+            refreshStatus();
+          }
+        };
+        const refreshStatus = async function() {
+          try {
+            const response = await fetch(baseHost + '/status');
+            if (!response.ok) return;
+            const data = await response.json();
+            updateTelemetry(data);
+          } catch (err) {
+            console.warn('Status refresh failed', err);
+          }
+        };
+        document.querySelectorAll('[data-command]').forEach(function(button){
+          button.addEventListener('click', async function(){
+            const command = button.getAttribute('data-command');
+            highlight(button);
+            await sendCommand('robot_command', command);
+            refreshStatus();
+          });
+        });
+        streamToggle.addEventListener('click', function(){
+          if (streamActive) {
+            stopStream();
+          } else {
+            startStream();
+          }
+        });
+        tiltUp.addEventListener('click', async function(){
+          highlight(tiltUp);
+          await sendCommand('camera_tilt', 'up');
+          refreshStatus();
+        });
+        tiltDown.addEventListener('click', async function(){
+          highlight(tiltDown);
+          await sendCommand('camera_tilt', 'down');
+          refreshStatus();
+        });
+        captureButton.addEventListener('click', capturePhoto);
+        refreshStatus();
+        setInterval(refreshStatus, 4000);
+      });
+    </script>
+  </body>
+</html>)=====";
+
+size_t index_project_html_len = sizeof(index_project_html) - 1;
