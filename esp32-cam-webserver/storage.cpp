@@ -208,4 +208,35 @@ void filesystemStart(){
     Serial.println("Retrying..");
   }
   listDir(SPIFFS, "/", 0);
+
+  
+void appendMovementLog(fs::FS &fs, const String &entry){
+  File file = fs.open(MOVEMENT_LOG_FILE, FILE_APPEND);
+  if (!file) {
+    File creat = fs.open(MOVEMENT_LOG_FILE, FILE_WRITE);
+    if (!creat) {
+      Serial.printf("Failed to open or create %s for append\r\n", MOVEMENT_LOG_FILE);
+      return;
+    }
+    creat.print(entry);
+    creat.close();
+    return;
+  }
+  file.print(entry);
+  file.close();
+}
+
+String readMovementLog(fs::FS &fs){
+  if (!fs.exists(MOVEMENT_LOG_FILE)) return String("");
+  File file = fs.open(MOVEMENT_LOG_FILE, FILE_READ);
+  if (!file) return String("");
+  String content;
+  while (file.available()) {
+    content += char(file.read());
+    if (content.length() > 200000) break;
+  }
+  file.close();
+  return content;
+}
+
 }

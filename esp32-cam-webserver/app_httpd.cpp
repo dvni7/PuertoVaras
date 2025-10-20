@@ -84,6 +84,22 @@ extern void tiltCameraDown();
 extern void registerPhotoCaptured();
 extern void handleCapturedPhoto(const uint8_t *data, size_t length);
 
+
+extern void flashLED(int flashtime);
+extern void setLamp(int newVal);
+extern void printLocalTime(bool extraData);
+extern String firebaseTimestamp(); 
+
+extern float robotPosX;
+extern float robotPosY;
+extern int robotHeading;
+extern bool robotInMotion;
+extern String robotMotionState;
+extern void handleRobotMoveCommand(const char *direction);
+extern void handleRobotRotateCommand(const char *direction);
+extern void handleRobotStopCommand();
+
+
 typedef struct {
         httpd_req_t *req;
         size_t len;
@@ -346,7 +362,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     char*  buf;
     size_t buf_len;
     char variable[32] = {0,};
-    char value[32] = {0,};
+    char value[128] = {0,}; 
 
     flashLED(75);
 
@@ -358,8 +374,8 @@ static esp_err_t cmd_handler(httpd_req_t *req){
             return ESP_FAIL;
         }
         if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
-            if (httpd_query_key_value(buf, "var", variable, sizeof(variable)) == ESP_OK &&
-                httpd_query_key_value(buf, "val", value, sizeof(value)) == ESP_OK) {
+            if (httpd_query_key_value(buf, "var", variable, sizeof(variable)) == ESP_OK) {
+                httpd_query_key_value(buf, "val", value, sizeof(value));
             } else {
                 free(buf);
                 httpd_resp_send_404(req);
@@ -370,17 +386,20 @@ static esp_err_t cmd_handler(httpd_req_t *req){
             httpd_resp_send_404(req);
             return ESP_FAIL;
         }
-        free(buf);
     } else {
         httpd_resp_send_404(req);
         return ESP_FAIL;
     }
 
-    if (critERR.length() > 0) return httpd_resp_send_500(req);
+    if (critERR.length() > 0) {
+        free(buf);
+        return httpd_resp_send_500(req);
+    }
 
     int val = atoi(value);
     sensor_t * s = esp_camera_sensor_get();
     int res = 0;
+
     if(!strcmp(variable, "framesize")) {
         if(s->pixformat == PIXFORMAT_JPEG) res = s->set_framesize(s, (framesize_t)val);
     }
@@ -428,6 +447,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
             setLamp(lampVal);
         }
     }
+
     else if(!strcmp(variable, "robot_command")) {
         if (strcmp(value, "stop") == 0) {
             handleRobotStopCommand();
@@ -439,6 +459,50 @@ static esp_err_t cmd_handler(httpd_req_t *req){
             handleRobotMoveCommand(value);
         }
     }
+
+    else if(!strcmp(variable, "robot_move")) {
+        // value expected: "forward","backward","left","right" o similar
+        handleRobotMoveCommand(value);
+        // Construir entrada CSV: timestamp,x,y,heading,action\n
+        String entry = firebaseTimestamp();
+        entry += ",";
+        entry += String(robotPosX, 2);
+        entry += ",";
+        entry += String(robotPosY, 2);
+        entry += ",";
+        entry += String(robotHeading);
+        entry += ",";
+        entry += value;
+        entry += "\n";
+        appendMovementLog(SPIFFS, entry);
+    }
+    else if(!strcmp(variable, "robot_rotate")) {
+        handleRobotRotateCommand(value);
+        String entry = firebaseTimestamp();
+        entry += ",ROT,";
+        entry += value;
+        entry += ",h=";
+        entry += String(robotHeading);
+        entry += "\n";
+        appendMovementLog(SPIFFS, entry);
+    }
+    else if(!strcmp(variable, "robot_stop")) {
+        handleRobotStopCommand();
+        String entry = firebaseTimestamp();
+        entry += ",STOP,heading=";
+        entry += String(robotHeading);
+        entry += "\n";
+        appendMovementLog(SPIFFS, entry);
+    }
+
+    else if(!strcmp(variable, "get_logs")) {
+        String logs = readMovementLog(SPIFFS);
+        httpd_resp_set_type(req, "text/plain");
+        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+        free(buf);
+        return httpd_resp_sendstr(req, logs.c_str());
+    }
+
     else if(!strcmp(variable, "camera_tilt")) {
         if (strcmp(value, "up") == 0) {
             tiltCameraUp();
@@ -475,12 +539,17 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     else {
         res = -1;
     }
+
     if(res){
+        free(buf);
         return httpd_resp_send_500(req);
     }
+
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    free(buf);
     return httpd_resp_send(req, NULL, 0);
 }
+
 
 static esp_err_t status_handler(httpd_req_t *req){
     static char json_response[1024];

@@ -12,3 +12,6 @@ extern void removePrefs(fs::FS &fs);
 extern void savePrefs(fs::FS &fs);
 
 extern void filesystemStart();
+
+extern void appendMovementLog(fs::FS &fs, const String &entry);
+extern String readMovementLog(fs::FS &fs);
