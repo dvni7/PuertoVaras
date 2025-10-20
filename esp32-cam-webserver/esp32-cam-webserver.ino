@@ -220,6 +220,61 @@ const int robotMoveStep = 1;      // Distance units per move command
 const int robotRotateStep = 15;   // Degrees per rotate command
 const int cameraTiltStep = 10;    // Degrees per tilt command
 
+#if defined(ROBOT_MOTOR_LEFT_IN1) && defined(ROBOT_MOTOR_LEFT_IN2) && defined(ROBOT_MOTOR_RIGHT_IN1) && defined(ROBOT_MOTOR_RIGHT_IN2)
+const int robotMotorLeftIn1 = ROBOT_MOTOR_LEFT_IN1;
+const int robotMotorLeftIn2 = ROBOT_MOTOR_LEFT_IN2;
+const int robotMotorRightIn1 = ROBOT_MOTOR_RIGHT_IN1;
+const int robotMotorRightIn2 = ROBOT_MOTOR_RIGHT_IN2;
+#else
+const int robotMotorLeftIn1 = -1;
+const int robotMotorLeftIn2 = -1;
+const int robotMotorRightIn1 = -1;
+const int robotMotorRightIn2 = -1;
+#endif
+
+bool robotMotorsInitialised = false;
+
+void configureRobotMotorOutputs() {
+    if (robotMotorLeftIn1 < 0 || robotMotorLeftIn2 < 0 || robotMotorRightIn1 < 0 || robotMotorRightIn2 < 0) {
+        Serial.println("Robot: motor pins not defined, commands limited to telemetry only.");
+        robotMotorsInitialised = false;
+        return;
+    }
+    pinMode(robotMotorLeftIn1, OUTPUT);
+    pinMode(robotMotorLeftIn2, OUTPUT);
+    pinMode(robotMotorRightIn1, OUTPUT);
+    pinMode(robotMotorRightIn2, OUTPUT);
+    digitalWrite(robotMotorLeftIn1, LOW);
+    digitalWrite(robotMotorLeftIn2, LOW);
+    digitalWrite(robotMotorRightIn1, LOW);
+    digitalWrite(robotMotorRightIn2, LOW);
+    robotMotorsInitialised = true;
+    Serial.println("Robot: motor outputs initialised");
+}
+
+void setRobotMotorState(bool leftForward, bool leftBackward, bool rightForward, bool rightBackward) {
+    if (!robotMotorsInitialised) return;
+    digitalWrite(robotMotorLeftIn1, leftForward ? HIGH : LOW);
+    digitalWrite(robotMotorLeftIn2, leftBackward ? HIGH : LOW);
+    digitalWrite(robotMotorRightIn1, rightForward ? HIGH : LOW);
+    digitalWrite(robotMotorRightIn2, rightBackward ? HIGH : LOW);
+}
+
+void driveRobotHardware(const char *command) {
+    if (!command || !robotMotorsInitialised) return;
+    if (strcmp(command, "forward") == 0) {
+        setRobotMotorState(true, false, true, false);
+    } else if (strcmp(command, "backward") == 0) {
+        setRobotMotorState(false, true, false, true);
+    } else if (strcmp(command, "left") == 0 || strcmp(command, "rotate_left") == 0) {
+        setRobotMotorState(false, true, true, false);
+    } else if (strcmp(command, "right") == 0 || strcmp(command, "rotate_right") == 0) {
+        setRobotMotorState(true, false, false, true);
+    } else if (strcmp(command, "stop") == 0) {
+        setRobotMotorState(false, false, false, false);
+    }
+}
+
 void handleRobotMoveCommand(const char *direction) {
     if (direction == nullptr) return;
     robotInMotion = true;
@@ -234,7 +289,7 @@ void handleRobotMoveCommand(const char *direction) {
         robotPosX += robotMoveStep;
     }
     Serial.printf("Robot move command: %s (x=%.1f, y=%.1f)\r\n", direction, robotPosX, robotPosY);
-    // TODO: integrate with motor driver hardware here.
+    driveRobotHardware(direction);
 }
 
 void handleRobotRotateCommand(const char *direction) {
@@ -249,14 +304,18 @@ void handleRobotRotateCommand(const char *direction) {
     if (robotHeading < 0) robotHeading += 360;
     if (robotHeading >= 360) robotHeading -= 360;
     Serial.printf("Robot rotate command: %s (heading=%d)\r\n", direction, robotHeading);
-    // TODO: integrate with rotation control hardware here.
+    if (strcmp(direction, "left") == 0) {
+        driveRobotHardware("rotate_left");
+    } else if (strcmp(direction, "right") == 0) {
+        driveRobotHardware("rotate_right");
+    }
 }
 
 void handleRobotStopCommand() {
     robotInMotion = false;
     robotMotionState = "idle";
     Serial.println("Robot stop command received");
-    // TODO: stop robot motors here.
+    driveRobotHardware("stop");
 }
 
 void setCameraTilt(int newTilt) {
@@ -948,6 +1007,8 @@ void setup() {
     } else {
         Serial.println("No Internal Filesystem, cannot load or save preferences");
     }
+
+    configureRobotMotorOutputs();
 
     /*
     * Camera setup complete; initialise the rest of the hardware.
