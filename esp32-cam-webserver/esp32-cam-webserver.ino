@@ -5,6 +5,7 @@
 #include <DNSServer.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <Servo.h>
 #include "src/parsebytes.h"
 #include "time.h"
 #include <ESPmDNS.h>
@@ -218,7 +219,9 @@ unsigned long photoCaptureCount = 0;
 
 const int robotMoveStep = 1;      // Distance units per move command
 const int robotRotateStep = 15;   // Degrees per rotate command
-const int cameraTiltStep = 10;    // Degrees per tilt command
+const int cameraTiltMinDegrees = 0;
+const int cameraTiltMaxDegrees = 90;
+const int cameraTiltStep = cameraTiltMaxDegrees;    // Full sweep per command
 
 #if defined(ROBOT_MOTOR_LEFT_IN1) && defined(ROBOT_MOTOR_LEFT_IN2) && defined(ROBOT_MOTOR_RIGHT_IN1) && defined(ROBOT_MOTOR_RIGHT_IN2)
 const int robotMotorLeftIn1 = ROBOT_MOTOR_LEFT_IN1;
@@ -233,6 +236,67 @@ const int robotMotorRightIn2 = -1;
 #endif
 
 bool robotMotorsInitialised = false;
+
+#if defined(CAMERA_TILT_SERVO_PIN)
+const int cameraTiltServoPin = CAMERA_TILT_SERVO_PIN;
+#else
+const int cameraTiltServoPin = -1;
+#endif
+
+#if defined(CAMERA_TILT_SERVO_PIN_SECONDARY)
+const int cameraTiltServoSecondaryPin = CAMERA_TILT_SERVO_PIN_SECONDARY;
+#else
+const int cameraTiltServoSecondaryPin = -1;
+#endif
+
+Servo cameraTiltServoPrimary;
+Servo cameraTiltServoSecondary;
+bool cameraServosInitialised = false;
+
+void detachCameraServos() {
+    if (cameraTiltServoPrimary.attached()) {
+        cameraTiltServoPrimary.detach();
+    }
+    if (cameraTiltServoSecondaryPin >= 0 && cameraTiltServoSecondary.attached()) {
+        cameraTiltServoSecondary.detach();
+    }
+    cameraServosInitialised = false;
+}
+
+void writeCameraServos(int angle) {
+    if (!cameraServosInitialised) return;
+    if (cameraTiltServoPin >= 0 && cameraTiltServoPrimary.attached()) {
+        cameraTiltServoPrimary.write(angle);
+    }
+    if (cameraTiltServoSecondaryPin >= 0 && cameraTiltServoSecondary.attached()) {
+        cameraTiltServoSecondary.write(angle);
+    }
+}
+
+void initialiseCameraServos() {
+    if (cameraTiltServoPin < 0 && cameraTiltServoSecondaryPin < 0) {
+        cameraServosInitialised = false;
+        return;
+    }
+    detachCameraServos();
+    bool attached = false;
+    if (cameraTiltServoPin >= 0) {
+        cameraTiltServoPrimary.attach(cameraTiltServoPin, 500, 2400);
+        if (cameraTiltServoPrimary.attached()) attached = true;
+    }
+    if (cameraTiltServoSecondaryPin >= 0) {
+        cameraTiltServoSecondary.attach(cameraTiltServoSecondaryPin, 500, 2400);
+        if (cameraTiltServoSecondary.attached()) attached = true;
+    }
+    cameraServosInitialised = attached;
+    if (cameraServosInitialised) {
+        int initialAngle = constrain(cameraTiltDegrees, cameraTiltMinDegrees, cameraTiltMaxDegrees);
+        writeCameraServos(initialAngle);
+        Serial.println("Camera tilt servos initialised");
+    } else {
+        Serial.println("Camera tilt servos failed to attach; check pin configuration.");
+    }
+}
 
 void configureRobotMotorOutputs() {
     if (robotMotorLeftIn1 < 0 || robotMotorLeftIn2 < 0 || robotMotorRightIn1 < 0 || robotMotorRightIn2 < 0) {
@@ -319,9 +383,9 @@ void handleRobotStopCommand() {
 }
 
 void setCameraTilt(int newTilt) {
-    cameraTiltDegrees = constrain(newTilt, -90, 90);
+    cameraTiltDegrees = constrain(newTilt, cameraTiltMinDegrees, cameraTiltMaxDegrees);
     Serial.printf("Camera tilt set to %d degrees\r\n", cameraTiltDegrees);
-    // TODO: drive camera tilt servo here.
+    writeCameraServos(cameraTiltDegrees);
 }
 
 void nudgeCameraTilt(int delta) {
@@ -1009,6 +1073,8 @@ void setup() {
     }
 
     configureRobotMotorOutputs();
+    initialiseCameraServos();
+    setCameraTilt(cameraTiltMinDegrees);
 
     /*
     * Camera setup complete; initialise the rest of the hardware.
