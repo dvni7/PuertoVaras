@@ -5,7 +5,7 @@
 #include <DNSServer.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
-#include <Servo.h>
+#include <ESP32Servo.h>
 #include "src/parsebytes.h"
 #include "time.h"
 #include <ESPmDNS.h>
