@@ -225,12 +225,6 @@ const uint8_t index_project_html[] = R"=====(<!doctype html>
           </section>
         </section>
       </main>
-      <footer class="hud-footer">
-        <div>CPU 34%</div>
-        <div>MEM 512MB/2GB</div>
-        <div>TEMP 42C</div>
-        <div id="uptime">UPTIME 00:00:00</div>
-      </footer>
     </div>
     <script>
       document.addEventListener('DOMContentLoaded', function() {
@@ -713,6 +707,6 @@ const uint8_t index_project_html[] = R"=====(<!doctype html>
     </script>
   </body>
 </html>
-)=====";;;;;;;;;
+)=====";;;;;;;;;;
 
 size_t index_project_html_len = sizeof(index_project_html) - 1;
