@@ -115,8 +115,14 @@ const uint8_t index_project_html[] = R"=====(<!doctype html>
       .hud-footer { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:0.75rem; font-size:0.75rem; text-transform:uppercase; }
       .hud-footer div { border:1px solid rgba(255,174,0,0.3); padding:0.5rem; text-align:center; background:rgba(255,174,0,0.05); letter-spacing:0.08em; }
       @media (max-width: 1100px) {
-        .hud-grid { grid-template-columns:1fr; }
+        .hud-grid {
+          grid-template-columns:repeat(2, minmax(0, 1fr));
+          grid-auto-rows:minmax(0, auto);
+        }
         .hud-telemetry { grid-auto-flow:row; justify-items:flex-start; }
+      }
+      @media (max-width: 900px) {
+        .hud-grid { grid-template-columns:1fr; }
       }
       @media (max-width: 640px) {
         .wrapper { padding:1rem; }
@@ -388,9 +394,11 @@ const uint8_t index_project_html[] = R"=====(<!doctype html>
             lampToggleButton.classList.remove('active');
           }
         };
-        const startStream = function() {
+        const startStream = function(reload = false) {
           if (!streamURL) return;
-          streamImage.src = streamURL;
+          const cacheBust = streamURL + (streamURL.includes('?') ? '&' : '?') + 'cb=' + Date.now();
+          if (reload) streamImage.src = '';
+          streamImage.src = cacheBust;
           streamActive = true;
           streamToggle.textContent = 'STOP FEED';
           streamToggle.classList.add('active');
@@ -620,7 +628,7 @@ const uint8_t index_project_html[] = R"=====(<!doctype html>
           } finally {
             captureButton.classList.remove('busy');
             captureButton.textContent = 'CAPTURAR FOTO';
-            if (wasStreaming) setTimeout(startStream, 250);
+            if (wasStreaming) setTimeout(function(){ startStream(true); }, 800);
             refreshStatus();
           }
         };
@@ -707,6 +715,6 @@ const uint8_t index_project_html[] = R"=====(<!doctype html>
     </script>
   </body>
 </html>
-)=====";;;;;;;;;;
+)=====";;;;;;;;;;;;
 
 size_t index_project_html_len = sizeof(index_project_html) - 1;

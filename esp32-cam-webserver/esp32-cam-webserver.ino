@@ -12,6 +12,9 @@
 #include <ctype.h>
 #include <stdio.h>
 
+// Forward declarations for cross-file functions
+extern void serialDump();
+extern void startCameraServer(int hPort, int sPort);
 
 /* This sketch is a extension/expansion/reork of the 'official' ESP32 Camera example
  *  sketch from Expressif:
@@ -65,41 +68,17 @@ camera_config_t config;
 #include "storage.h"
 
 #if defined(FIREBASE_API_KEY) && defined(FIREBASE_DATABASE_URL)
-  #include <Firebase_ESP_Client.h>
-  #include "addons/TokenHelper.h"
-  FirebaseData firebaseDB;
-  FirebaseAuth firebaseAuth;
-  FirebaseConfig firebaseConfig;
-  bool firebaseInitialised = false;
-  unsigned long lastFirebaseAttempt = 0;
-  const unsigned long firebaseRetryMs = 15000;
-  #ifndef FIREBASE_ROOT_NODE
-    #define FIREBASE_ROOT_NODE "/captures"
-  #endif
-#endif
 
-// Sketch Info
-int sketchSize;
-int sketchSpace;
-String sketchMD5;
+// Firebase upload disabled.
+void handleCapturedPhoto(const uint8_t *imageData, size_t length) {
+    (void)imageData;
+    (void)length;
+}
 
-// Start with accesspoint mode disabled, wifi setup will activate it if
-// no known networks are found, and WIFI_AP_ENABLE has been defined
-bool accesspoint = false;
-
-// IP address, Netmask and Gateway, populated when connected
-IPAddress ip;
-IPAddress net;
-IPAddress gw;
-
-// Declare external function from app_httpd.cpp
-extern void startCameraServer(int hPort, int sPort);
-extern void serialDump();
-
-// Names for the Camera. (set these in myconfig.h)
-#if defined(CAM_NAME)
-    char myName[] = CAM_NAME;
 #else
+
+
+
     char myName[] = "ESP32 camera server";
 #endif
 
@@ -149,6 +128,10 @@ int stationCount = sizeof(stationList)/sizeof(stationList[0]);
 const byte DNS_PORT = 53;
 DNSServer dnsServer;
 bool captivePortal = false;
+bool accesspoint = false;
+IPAddress ip;
+IPAddress net;
+IPAddress gw;
 char apName[64] = "Undefined";
 
 // The app and stream URLs
@@ -162,6 +145,9 @@ unsigned long imagesServed = 0;  // Total image requests
 
 // This will be displayed to identify the firmware
 char myVer[] PROGMEM = __DATE__ " @ " __TIME__;
+int sketchSize = 0;
+int sketchSpace = 0;
+String sketchMD5 = "";
 
 // This will be set to the sensors PID (identifier) during initialisation
 //camera_pid_t sensorPID;
@@ -318,10 +304,36 @@ void configureRobotMotorOutputs() {
 
 void setRobotMotorState(bool leftForward, bool leftBackward, bool rightForward, bool rightBackward) {
     if (!robotMotorsInitialised) return;
-    digitalWrite(robotMotorLeftIn1, leftForward ? HIGH : LOW);
-    digitalWrite(robotMotorLeftIn2, leftBackward ? HIGH : LOW);
-    digitalWrite(robotMotorRightIn1, rightForward ? HIGH : LOW);
-    digitalWrite(robotMotorRightIn2, rightBackward ? HIGH : LOW);
+    bool leftF = leftForward;
+    bool leftB = leftBackward;
+    #if defined(ROBOT_LEFT_MOTOR_INVERTED)
+        bool tempLeft = leftF;
+        leftF = leftB;
+        leftB = tempLeft;
+    #endif
+    bool rightF = rightForward;
+    bool rightB = rightBackward;
+    #if defined(ROBOT_RIGHT_MOTOR_INVERTED)
+        bool tempRight = rightF;
+        rightF = rightB;
+        rightB = tempRight;
+    #endif
+
+    #if defined(ROBOT_LEFT_MOTOR_MIRRORED)
+        digitalWrite(robotMotorLeftIn1, leftB ? HIGH : LOW);
+        digitalWrite(robotMotorLeftIn2, leftF ? HIGH : LOW);
+    #else
+        digitalWrite(robotMotorLeftIn1, leftF ? HIGH : LOW);
+        digitalWrite(robotMotorLeftIn2, leftB ? HIGH : LOW);
+    #endif
+
+    #if defined(ROBOT_RIGHT_MOTOR_MIRRORED)
+        digitalWrite(robotMotorRightIn1, rightB ? HIGH : LOW);
+        digitalWrite(robotMotorRightIn2, rightF ? HIGH : LOW);
+    #else
+        digitalWrite(robotMotorRightIn1, rightF ? HIGH : LOW);
+        digitalWrite(robotMotorRightIn2, rightB ? HIGH : LOW);
+    #endif
 }
 
 void driveRobotHardware(const char *command) {
@@ -510,58 +522,18 @@ bool ensureFirebaseReady() {
 }
 
 bool uploadPhotoToFirebase(const uint8_t *imageData, size_t length) {
-    if (!imageData || length == 0) {
-        return false;
-    }
-    if (!ensureFirebaseReady()) {
-        return false;
-    }
-    if (!Firebase.ready()) {
-        return false;
-    }
-
-    String networkNode = firebaseNetworkLabel();
-    uint64_t microsNow = esp_timer_get_time();
-    String captureKey = firebaseMicrosToString(microsNow);
-    String basePath = String(FIREBASE_ROOT_NODE) + "/" + networkNode + "/" + captureKey;
-
-    String blobPath = basePath + "/image";
-    if (!Firebase.RTDB.setBlob(&firebaseDB, blobPath.c_str(), const_cast<uint8_t*>(imageData), length)) {
-        Serial.printf("Firebase blob upload failed: %s\r\n", firebaseDB.errorReason().c_str());
-        return false;
-    }
-
-    FirebaseJson metadata;
-    metadata.set("sizeBytes", static_cast<int32_t>(length));
-    metadata.set("capturedAt", firebaseTimestamp());
-    metadata.set("capturedAtMicros", static_cast<double>(microsNow));
-    metadata.set("deviceName", myName);
-    metadata.set("httpURL", httpURL);
-    metadata.set("streamURL", streamURL);
-    metadata.set("networkMode", accesspoint ? "accesspoint" : "station");
-    metadata.set("networkLabel", networkNode);
-
-    String metaPath = basePath + "/meta";
-    if (!Firebase.RTDB.setJSON(&firebaseDB, metaPath.c_str(), &metadata)) {
-        Serial.printf("Firebase metadata upload failed: %s\r\n", firebaseDB.errorReason().c_str());
-    }
-    return true;
+    (void)imageData;
+    (void)length;
+    return false;
 }
 
 void handleCapturedPhoto(const uint8_t *imageData, size_t length) {
-    static bool warnedAP = false;
-    if (!imageData || length == 0) {
-        return;
-    }
-    if (accesspoint) {
-        if (!warnedAP) {
-            Serial.println("Firebase upload skipped: device is running as an Access Point without upstream internet.");
-            warnedAP = true;
-        }
-        return;
-    }
-    if (uploadPhotoToFirebase(imageData, length)) {
-        Serial.println("Firebase: still image stored");
+    (void)imageData;
+    (void)length;
+    static bool warned = false;
+    if (!warned) {
+        Serial.println("Firebase capture upload disabled.");
+        warned = true;
     }
 }
 
