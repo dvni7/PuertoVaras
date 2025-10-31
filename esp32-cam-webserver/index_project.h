@@ -65,17 +65,16 @@ const uint8_t index_project_html[] = R"=====(<!doctype html>
       .stream-wrapper { position:relative; border:2px solid rgb(255, 174, 0); flex:1; overflow:hidden; display:flex; align-items:center; justify-content:center; background:rgb(15, 7, 1); min-height:0; height:430px; }
       .stream-wrapper img { width:100%; height:100%; object-fit:contain; background:rgb(15, 7, 1); }
       .stream-hud { position:absolute; top:1rem; left:1rem; display:flex; flex-direction:column; gap:0.45rem; pointer-events:none; }
-      .tilt-sidebar { width:140px; border-left:1px solid rgba(255,174,0,0.25); padding-left:1rem; display:flex; flex-direction:column; align-items:center; gap:1.2rem; }
+      .tilt-sidebar { width:160px; border-left:1px solid rgba(255,174,0,0.25); padding-left:1rem; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.2rem; }
+      .tilt-controls { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1rem; width:100%; }
       .tilt-readout { display:flex; flex-direction:column; align-items:center; gap:0.3rem; }
       .tilt-label { font-size:0.75rem; letter-spacing:0.12em; color:rgba(255,174,0,0.75); }
       .tilt-value { font-size:2rem; font-weight:700; display:flex; align-items:flex-end; gap:0.3rem; letter-spacing:0.05em; }
       .tilt-value .unit { font-size:0.9rem; color:rgb(255, 174, 0); letter-spacing:0.08em; }
-      .tilt-slider { width:100%; display:flex; justify-content:center; padding:0; }
-      #tilt-slider { width:10px; height:260px; -webkit-appearance:slider-vertical; appearance:slider-vertical; writing-mode:bt-lr; background:transparent; }
-      #tilt-slider::-webkit-slider-runnable-track { width:8px; height:100%; background:rgba(255,174,0,0.25); border-radius:4px; }
-      #tilt-slider::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:rgb(255,174,0); box-shadow:0 0 10px rgba(255,174,0,0.6); cursor:pointer; margin-left:-5px; }
-      #tilt-slider::-moz-range-track { width:8px; height:100%; background:rgba(255,174,0,0.25); border-radius:4px; }
-      #tilt-slider::-moz-range-thumb { width:18px; height:18px; border-radius:50%; background:rgb(255,174,0); box-shadow:0 0 10px rgba(255,174,0,0.6); cursor:pointer; }
+      .tilt-button { width:60px; height:60px; border-radius:50%; border:2px solid rgb(255,174,0); background:rgba(90,52,0,0.35); color:rgb(255,174,0); font-size:2.2rem; display:flex; align-items:center; justify-content:center; transition:all 0.18s ease; box-shadow:0 0 14px rgba(255,174,0,0.14); }
+      .tilt-button:hover { background:rgba(255,174,0,0.2); box-shadow:0 0 18px rgba(255,174,0,0.3); }
+      .tilt-button:active { transform:scale(0.92); box-shadow:0 0 22px rgba(255,174,0,0.35); }
+      .tilt-button.disabled { opacity:0.35; pointer-events:none; box-shadow:none; }
       .lamp-button { border-color:rgba(255,174,0,0.6); }
       .camera-controls { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:0.8rem; border-top:1px solid rgba(255,174,0,0.25); padding-top:1rem; margin-top:1rem; }
       .control-status { display:flex; align-items:center; gap:0.4rem; font-size:0.8rem; letter-spacing:0.08em; text-transform:uppercase; }
@@ -130,7 +129,7 @@ const uint8_t index_project_html[] = R"=====(<!doctype html>
         .hud-title h1 { font-size:1.3rem; }
       .camera-body { flex-direction:column; }
       .tilt-sidebar { width:100%; flex-direction:row; justify-content:space-between; align-items:center; border-left:none; border-top:1px solid rgba(255,174,0,0.25); padding:1rem 0 0; }
-      #tilt-slider { height:200px; }
+      .tilt-buttons { flex-direction:row; justify-content:center; }
       .camera-controls { flex-direction:column; align-items:flex-start; }
       }
     </style>
@@ -203,12 +202,13 @@ const uint8_t index_project_html[] = R"=====(<!doctype html>
               </div>
             </div>
             <aside class="tilt-sidebar">
-              <div class="tilt-readout">
-                <span class="tilt-label">ÁNGULO</span>
-                <span class="tilt-value"><span id="camera-angle">0</span><span class="unit">deg</span></span>
-              </div>
-              <div class="tilt-slider">
-                <input type="range" id="tilt-slider" min="-90" max="90" step="1" value="0">
+              <div class="tilt-controls">
+                <button class="tilt-button" id="tilt-increase" aria-label="Aumentar ángulo">+</button>
+                <div class="tilt-readout">
+                  <span class="tilt-label">ÁNGULO</span>
+                  <span class="tilt-value"><span id="camera-angle">0</span><span class="unit">deg</span></span>
+                </div>
+                <button class="tilt-button" id="tilt-decrease" aria-label="Disminuir ángulo">−</button>
               </div>
             </aside>
           </div>
@@ -256,7 +256,8 @@ const uint8_t index_project_html[] = R"=====(<!doctype html>
         const cameraName = document.getElementById('camera-name');
         const photoList = document.getElementById('photo-list');
         const captureButton = document.getElementById('capture-photo');
-        const tiltSlider = document.getElementById('tilt-slider');
+        const tiltDecreaseButton = document.getElementById('tilt-decrease');
+        const tiltIncreaseButton = document.getElementById('tilt-increase');
         const lampToggleButton = document.getElementById('lamp-toggle');
         const uptime = document.getElementById('uptime');
         const radarCanvas = document.getElementById('radar-canvas');
@@ -278,7 +279,82 @@ const uint8_t index_project_html[] = R"=====(<!doctype html>
         let lastRobotState = { x: 0, y: 0, heading: 0 };
         let simulatedRobotState = { x: 0, y: 0, heading: 0 };
         let lampState = { auto: true, level: 0 };
-        let tiltSliderActive = false;
+        let currentTilt = 0;
+        let tiltHoldTimer = null;
+        let tiltHoldDirection = null;
+        let tiltHoldDelay = 0;
+        const tiltHoldDelayStart = 220;
+        const tiltHoldDelayMin = 80;
+        const tiltHoldDelayDecay = 0.82;
+        let tiltConfig = { min: -90, max: 90, step: 5 };
+        const clampTilt = function(value) {
+          if (!Number.isFinite(value)) value = 0;
+          if (value < tiltConfig.min) return tiltConfig.min;
+          if (value > tiltConfig.max) return tiltConfig.max;
+          return Math.round(value);
+        };
+        const updateTiltDisplay = function(angle) {
+          const clamped = clampTilt(angle);
+          cameraAngleHeader.textContent = clamped + ' deg';
+          cameraAngleValue.textContent = clamped;
+          angleIndicator.textContent = 'ANGLE ' + clamped + ' deg';
+          if (tiltIncreaseButton) {
+            if (clamped >= tiltConfig.max) tiltIncreaseButton.classList.add('disabled');
+            else tiltIncreaseButton.classList.remove('disabled');
+          }
+          if (tiltDecreaseButton) {
+            if (clamped <= tiltConfig.min) tiltDecreaseButton.classList.add('disabled');
+            else tiltDecreaseButton.classList.remove('disabled');
+          }
+        };
+        const sendTiltTarget = function(target) {
+          currentTilt = clampTilt(target);
+          updateTiltDisplay(currentTilt);
+          sendCommand('camera_set_tilt', currentTilt);
+        };
+        const nudgeTilt = function(direction) {
+          const delta = direction === 'increase' ? tiltConfig.step : -tiltConfig.step;
+          const next = clampTilt(currentTilt + delta);
+          if (next === currentTilt) return false;
+          sendTiltTarget(next);
+          return true;
+        };
+        const scheduleTiltRepeat = function() {
+          if (!tiltHoldDirection) return;
+          const moved = nudgeTilt(tiltHoldDirection);
+          if (!moved) {
+            tiltHoldDirection = null;
+            tiltHoldTimer = null;
+            return;
+          }
+          tiltHoldDelay = Math.max(tiltHoldDelayMin, Math.floor(tiltHoldDelay * tiltHoldDelayDecay));
+          tiltHoldTimer = setTimeout(scheduleTiltRepeat, tiltHoldDelay);
+        };
+        const startTiltHold = function(direction) {
+          if (tiltHoldTimer) {
+            clearTimeout(tiltHoldTimer);
+            tiltHoldTimer = null;
+          }
+          tiltHoldDirection = direction;
+          tiltHoldDelay = tiltHoldDelayStart;
+          const moved = nudgeTilt(direction);
+          if (!moved) {
+            tiltHoldDirection = null;
+            tiltHoldTimer = null;
+            return;
+          }
+          tiltHoldTimer = setTimeout(scheduleTiltRepeat, tiltHoldDelay);
+        };
+        const stopTiltHold = function() {
+          if (tiltHoldTimer) {
+            clearTimeout(tiltHoldTimer);
+            tiltHoldTimer = null;
+          }
+          if (tiltHoldDirection) {
+            tiltHoldDirection = null;
+            setTimeout(function(){ refreshStatus(); }, 220);
+          }
+        };
         const ensureRadarSize = function() {
           if (!radarCanvas || !radarCtx) return;
           const size = Math.min(radarCanvas.clientWidth || 0, radarCanvas.clientHeight || 0);
@@ -561,13 +637,25 @@ const uint8_t index_project_html[] = R"=====(<!doctype html>
           lastRobotState = { x, y, heading };
           simulatedRobotState = { x, y, heading };
           drawRadar(x, y, heading);
-          const angle = typeof data.camera_tilt === 'number' ? data.camera_tilt : parseInt(data.camera_tilt || 0, 10);
-          cameraAngleHeader.textContent = angle + ' deg';
-          cameraAngleValue.textContent = angle;
-          if (tiltSlider && !tiltSliderActive) {
-            tiltSlider.value = angle;
+          if (typeof data.camera_tilt_min === 'number' && Number.isFinite(data.camera_tilt_min)) {
+            tiltConfig.min = Math.round(data.camera_tilt_min);
           }
-          angleIndicator.textContent = 'ANGLE ' + angle + ' deg';
+          if (typeof data.camera_tilt_max === 'number' && Number.isFinite(data.camera_tilt_max)) {
+            tiltConfig.max = Math.round(data.camera_tilt_max);
+          }
+          if (tiltConfig.min > tiltConfig.max) {
+            const tmp = tiltConfig.min;
+            tiltConfig.min = tiltConfig.max;
+            tiltConfig.max = tmp;
+          }
+          if (typeof data.camera_tilt_step === 'number' && Number.isFinite(data.camera_tilt_step)) {
+            const normalizedStep = Math.max(1, Math.abs(Math.round(data.camera_tilt_step)));
+            const range = Math.max(1, Math.abs(tiltConfig.max - tiltConfig.min));
+            tiltConfig.step = Math.min(normalizedStep, range);
+          }
+          const angle = typeof data.camera_tilt === 'number' ? data.camera_tilt : parseInt(data.camera_tilt || 0, 10);
+          currentTilt = clampTilt(angle);
+          updateTiltDisplay(currentTilt);
           if (typeof data.photos_taken === 'number') {
             photoCount.textContent = data.photos_taken;
           } else {
@@ -649,24 +737,34 @@ const uint8_t index_project_html[] = R"=====(<!doctype html>
             startStream();
           }
         });
-        if (tiltSlider) {
-          const engageSlider = function(){ tiltSliderActive = true; };
-          const releaseSlider = function(){ tiltSliderActive = false; };
-          ['pointerdown','mousedown','touchstart'].forEach(function(evt){ tiltSlider.addEventListener(evt, engageSlider); });
-          ['pointerup','mouseup','touchend','touchcancel','mouseleave'].forEach(function(evt){ tiltSlider.addEventListener(evt, releaseSlider); });
-          tiltSlider.addEventListener('input', function(){
-            const value = parseInt(tiltSlider.value, 10) || 0;
-            cameraAngleValue.textContent = value;
-            cameraAngleHeader.textContent = value + ' deg';
-            angleIndicator.textContent = 'ANGLE ' + value + ' deg';
+        const pointerSupported = 'PointerEvent' in window;
+        const tiltStartEvents = pointerSupported ? ['pointerdown'] : ['mousedown', 'touchstart'];
+        const tiltEndEvents = pointerSupported ? ['pointerup', 'pointerleave', 'pointercancel'] : ['mouseup', 'mouseleave', 'touchend', 'touchcancel'];
+        const bindTiltButton = function(button, direction) {
+          if (!button) return;
+          tiltStartEvents.forEach(function(evt){
+            button.addEventListener(evt, function(event){
+              event.preventDefault();
+              startTiltHold(direction);
+            }, { passive: false });
           });
-          tiltSlider.addEventListener('change', async function(){
-            const value = parseInt(tiltSlider.value, 10) || 0;
-            await sendCommand('camera_set_tilt', value);
-            tiltSliderActive = false;
-            refreshStatus();
+          tiltEndEvents.forEach(function(evt){
+            button.addEventListener(evt, function(event){
+              event.preventDefault();
+              stopTiltHold();
+            }, { passive: false });
           });
-        }
+          button.addEventListener('keydown', function(event){
+            if (event.key === ' ' || event.key === 'Spacebar' || event.key === 'Enter') {
+              event.preventDefault();
+              nudgeTilt(direction);
+              setTimeout(function(){ refreshStatus(); }, 180);
+            }
+          });
+        };
+        bindTiltButton(tiltIncreaseButton, 'increase');
+        bindTiltButton(tiltDecreaseButton, 'decrease');
+        window.addEventListener('blur', stopTiltHold);
         if (lampToggleButton) {
           lampToggleButton.addEventListener('click', async function(){
             highlight(lampToggleButton);
@@ -702,6 +800,7 @@ const uint8_t index_project_html[] = R"=====(<!doctype html>
             }
           });
         }
+        updateTiltDisplay(currentTilt);
         updateLampButton();
         renderCommandHistory();
         drawRadar(lastRobotState.x, lastRobotState.y, lastRobotState.heading);

@@ -205,9 +205,29 @@ unsigned long photoCaptureCount = 0;
 
 const int robotMoveStep = 1;      // Distance units per move command
 const int robotRotateStep = 15;   // Degrees per rotate command
-const int cameraTiltMinDegrees = 0;
-const int cameraTiltMaxDegrees = 90;
-const int cameraTiltStep = cameraTiltMaxDegrees;    // Full sweep per command
+#if defined(CAMERA_TILT_MIN_DEGREES)
+int cameraTiltMinDegrees = CAMERA_TILT_MIN_DEGREES;
+#else
+int cameraTiltMinDegrees = -90;
+#endif
+
+#if defined(CAMERA_TILT_MAX_DEGREES)
+int cameraTiltMaxDegrees = CAMERA_TILT_MAX_DEGREES;
+#else
+int cameraTiltMaxDegrees = 90;
+#endif
+
+#if defined(CAMERA_TILT_STEP_DEGREES)
+int cameraTiltStep = (CAMERA_TILT_STEP_DEGREES > 0) ? CAMERA_TILT_STEP_DEGREES : 1;
+#else
+int cameraTiltStep = 5;
+#endif
+
+#if defined(CAMERA_TILT_OFFSET_DEGREES)
+int cameraTiltOffsetDegrees = CAMERA_TILT_OFFSET_DEGREES;
+#else
+int cameraTiltOffsetDegrees = 0;
+#endif
 
 #if defined(ROBOT_MOTOR_LEFT_IN1) && defined(ROBOT_MOTOR_LEFT_IN2) && defined(ROBOT_MOTOR_RIGHT_IN1) && defined(ROBOT_MOTOR_RIGHT_IN2)
 const int robotMotorLeftIn1 = ROBOT_MOTOR_LEFT_IN1;
@@ -251,11 +271,13 @@ void detachCameraServos() {
 
 void writeCameraServos(int angle) {
     if (!cameraServosInitialised) return;
+    int servoAngle = angle + cameraTiltOffsetDegrees;
+    servoAngle = constrain(servoAngle, 0, 180);
     if (cameraTiltServoPin >= 0 && cameraTiltServoPrimary.attached()) {
-        cameraTiltServoPrimary.write(angle);
+        cameraTiltServoPrimary.write(servoAngle);
     }
     if (cameraTiltServoSecondaryPin >= 0 && cameraTiltServoSecondary.attached()) {
-        cameraTiltServoSecondary.write(angle);
+        cameraTiltServoSecondary.write(servoAngle);
     }
 }
 
@@ -395,6 +417,11 @@ void handleRobotStopCommand() {
 }
 
 void setCameraTilt(int newTilt) {
+    if (cameraTiltMinDegrees > cameraTiltMaxDegrees) {
+        int temp = cameraTiltMinDegrees;
+        cameraTiltMinDegrees = cameraTiltMaxDegrees;
+        cameraTiltMaxDegrees = temp;
+    }
     cameraTiltDegrees = constrain(newTilt, cameraTiltMinDegrees, cameraTiltMaxDegrees);
     Serial.printf("Camera tilt set to %d degrees\r\n", cameraTiltDegrees);
     writeCameraServos(cameraTiltDegrees);
