@@ -1,0 +1,195 @@
+/*
+ * NOTAS DE CONFIGURACIÓN - ESP32 Unified Control System
+ * ====================================================
+ * 
+ * IMPORTANTE: Ajustes según tu hardware específico
+ */
+
+// ============================================
+// 1. CONFLICTO DE PINES LED Y MOTOR
+// ============================================
+// El Pin 4 está usado para:
+//   - LED Flash (integrado en ESP32-CAM)
+//   - Motor IN2 (Puente H L298N)
+// 
+// SOLUCIONES:
+// a) Si NO usas motores: Deja como está
+// b) Si NO usas LED: Comenta la línea "#define LED_PIN 4"
+// c) Si usas AMBOS: Cambia el pin del motor IN2
+//
+// Ejemplo para cambiar motor IN2 al pin 15:
+// const int motor1Pin2 = 15;  // en lugar de 4
+
+// ============================================
+// 2. PINES DISPONIBLES EN ESP32-CAM
+// ============================================
+// Los siguientes pines están relativamente libres y pueden usarse:
+//   - GPIO 12, 13, 14, 15 (con precaución)
+//   - GPIO 2, 4 (si no se usa la cámara flash)
+//   - GPIO 33 (ADC)
+//
+// EVITAR estos pines:
+//   - GPIO 0, 1, 3 (boot y serial)
+//   - GPIO 5, 18, 19, 21, 22, 23, 25, 26, 27, 32, 35, 34, 39, 36 (cámara)
+
+// ============================================
+// 3. ALIMENTACIÓN CORRECTA
+// ============================================
+// ESP32-CAM:
+//   - 5V vía USB o pin 5V
+//   - Consumo: ~200-300mA (sin motores)
+//
+// Motores DC:
+//   - Alimentación separada 7-12V al L298N
+//   - NO alimentar desde el ESP32
+//   - Conectar GND común entre ESP32 y L298N
+//
+// Servo:
+//   - Puede alimentarse desde 5V del ESP32 si es pequeño
+//   - Servos grandes necesitan alimentación externa
+
+// ============================================
+// 4. CONFIGURACIÓN DE LA CÁMARA
+// ============================================
+// Resoluciones disponibles (ordenadas por tamaño):
+//   - FRAMESIZE_QQVGA   (160x120)   - Muy rápido, calidad baja
+//   - FRAMESIZE_QVGA    (320x240)   - Rápido, buena calidad
+//   - FRAMESIZE_VGA     (640x480)   - Balance (default)
+//   - FRAMESIZE_SVGA    (800x600)   - Más lento
+//   - FRAMESIZE_XGA     (1024x768)  - Requiere PSRAM
+//   - FRAMESIZE_HD      (1280x720)  - Requiere PSRAM
+//   - FRAMESIZE_UXGA    (1600x1200) - Máxima calidad, lento
+//
+// Para streaming más fluido: usar QVGA o VGA
+// Para fotos de alta calidad: usar UXGA
+
+// ============================================
+// 5. AJUSTES DE VELOCIDAD PWM
+// ============================================
+// La velocidad de los motores se controla con PWM (0-255):
+//   - 0-80:    Muy lento (puede no arrancar)
+//   - 80-150:  Lento, buen control
+//   - 150-200: Velocidad media (recomendado)
+//   - 200-255: Alta velocidad
+//
+// El valor por defecto es 200. Ajústalo según tus motores.
+
+// ============================================
+// 6. CONFIGURACIÓN DE RED WIFI
+// ============================================
+// Modo Access Point (AP):
+//   - SSID: "ESP32-Control" (puedes cambiarlo)
+//   - Password: "12345678" (mínimo 8 caracteres)
+//   - IP por defecto: 192.168.4.1
+//   - Gateway: 192.168.4.1
+//   - Subnet: 255.255.255.0
+//
+// Alternativa - Modo Station (conectarse a WiFi existente):
+// Reemplaza en setup():
+//   WiFi.softAP(ap_ssid, ap_password);
+// Por:
+//   WiFi.begin("TuSSID", "TuPassword");
+//   while (WiFi.status() != WL_CONNECTED) {
+//     delay(500);
+//     Serial.print(".");
+//   }
+// Y usa WiFi.localIP() en lugar de WiFi.softAPIP()
+
+// ============================================
+// 7. DEPURACIÓN Y DIAGNÓSTICO
+// ============================================
+// Monitor Serie a 115200 baud muestra:
+//   - Estado de inicialización de cada componente
+//   - IP de conexión
+//   - Errores de cámara
+//   - Comandos recibidos
+//
+// LED integrado (GPIO 33 en algunas placas):
+//   - Parpadea durante inicialización
+//   - Encendido cuando hay actividad
+
+// ============================================
+// 8. LIMITACIONES Y CONSIDERACIONES
+// ============================================
+// Memoria:
+//   - El código usa ~60% de la memoria flash
+//   - El streaming de video usa ~200KB RAM
+//   - Si falta memoria, reduce la resolución de cámara
+//
+// Velocidad:
+//   - Streaming a 640x480 da ~10-15 FPS
+//   - A 320x240 puede dar ~20-25 FPS
+//   - Latencia típica: 200-500ms
+//
+// Alcance WiFi:
+//   - En modo AP: 10-30 metros típico
+//   - Reducido por paredes y obstáculos
+//
+// Conexiones simultáneas:
+//   - El servidor puede manejar 1-2 clientes
+//   - Múltiples conexiones reducen rendimiento
+
+// ============================================
+// 9. AMPLIACIONES POSIBLES
+// ============================================
+// Ideas para expandir el proyecto:
+//   1. Agregar sensores (ultrasónico, infrarrojos)
+//   2. Modo automático (seguir línea, evitar obstáculos)
+//   3. Guardar fotos en SD card
+//   4. Control por voz con reconocimiento
+//   5. Telemetría (velocidad, batería, etc)
+//   6. Control con joystick virtual
+//   7. Grabar video
+//   8. Detección de movimiento
+//   9. Integración con IA (reconocimiento facial)
+//   10. Control mediante app móvil nativa
+
+// ============================================
+// 10. LIBRERÍAS ADICIONALES (OPCIONALES)
+// ============================================
+// Para funcionalidades extra:
+//   - ESPAsyncWebServer: Servidor web asíncrono (mejor rendimiento)
+//   - ArduinoJson: Para API REST más compleja
+//   - AsyncTCP: Para múltiples conexiones
+//   - FS/SPIFFS: Sistema de archivos para guardar configs
+//   - SD_MMC: Para usar tarjeta SD
+
+// ============================================
+// 11. ESQUEMA DE CONEXIÓN L298N
+// ============================================
+/*
+ * L298N Pin    →  ESP32 Pin    →  Función
+ * ─────────────────────────────────────────
+ * IN1          →  GPIO 2       →  Motor A dirección
+ * IN2          →  GPIO 4       →  Motor A dirección
+ * IN3          →  GPIO 32      →  Motor B dirección
+ * IN4          →  GPIO 33      →  Motor B dirección
+ * ENA          →  GPIO 25      →  Motor A velocidad (PWM)
+ * ENB          →  GPIO 26      →  Motor B velocidad (PWM)
+ * GND          →  GND          →  Tierra común
+ * 
+ * Alimentación L298N:
+ * +12V         →  Batería +    →  7-12V
+ * GND          →  Batería -    →  Tierra
+ * 
+ * Motores:
+ * OUT1, OUT2   →  Motor A      →  Izquierdo
+ * OUT3, OUT4   →  Motor B      →  Derecho
+ * 
+ * IMPORTANTE: Quita los jumpers de ENA y ENB del L298N
+ *             para permitir control PWM desde el ESP32
+ */
+
+// ============================================
+// 12. TIPS DE SEGURIDAD
+// ============================================
+// 1. Nunca conectes/desconectes componentes con alimentación
+// 2. Verifica polaridad antes de conectar
+// 3. Usa fusibles en líneas de potencia
+// 4. No cortocircuites pines GPIO
+// 5. Los motores generan ruido eléctrico - usa capacitores
+// 6. Mantén cables de datos alejados de cables de potencia
+// 7. Ventilación adecuada para L298N (se calienta)
+// 8. No excedas 12V en el L298N
+// 9. Protege el circuito de inversión de polaridad
+// 10. Usa baterías apropiadas (NiMH, Li-Po con protección, etc)

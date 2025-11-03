@@ -1,0 +1,232 @@
+# Diagrama de Conexiones - ESP32 Unified Control System
+
+```
+╔════════════════════════════════════════════════════════════════════════════╗
+║                         ESP32-CAM CONTROL SYSTEM                           ║
+║                              Diagrama de Pines                             ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+                              ┌─────────────────┐
+                              │   ESP32-CAM     │
+                              │   (AI-THINKER)  │
+                              │                 │
+                       ┌──────┤ 5V          GND ├──────┐
+                       │      │                 │      │
+                       │      │ GPIO 0          │      │
+                       │      │ GPIO 1          │      │
+         LED Flash ────┼──────┤ GPIO 4     33   ├──────┼──── Motor 2 IN4
+                       │      │                 │      │
+                       │      ├─────────────────┤      │
+                       │      │                 │      │
+       Motor 1 IN1 ────┼──────┤ GPIO 2     32   ├──────┼──── Motor 2 IN3
+                       │      │                 │      │
+                       │      │ GPIO 3          │      │
+                       │      │                 │      │
+      Servo Señal ─────┼──────┤ GPIO 13    26   ├──────┼──── Motor B PWM (ENB)
+                       │      │                 │      │
+                       │      │ GPIO 14    25   ├──────┼──── Motor A PWM (ENA)
+                       │      │                 │      │
+                       │      │ GPIO 15         │      │
+                       │      │                 │      │
+                       │      │      ...         │      │
+                       │      └─────────────────┘      │
+                       │                               │
+                    ┌──┴──┐                         ┌──┴──┐
+                    │ GND │                         │ GND │
+                    └─────┘                         └─────┘
+
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                        CONEXIONES DEL L298N                                ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+                          ┌───────────────────────┐
+        ESP32 GPIO 2 ────►│ IN1              OUT1 ├────┐
+                          │                       │    │   Motor A
+        ESP32 GPIO 4 ────►│ IN2              OUT2 ├────┤  (Izquierdo)
+                          │                       │    │
+        ESP32 GPIO 25 ───►│ ENA (quitar jumper)   │    │
+                          │                       │    │
+                          │      L298N            │    │
+                          │   Puente H Driver     │    │
+                          │                       │    │
+        ESP32 GPIO 26 ───►│ ENB (quitar jumper)   │    │
+                          │                       │    │
+        ESP32 GPIO 32 ───►│ IN3              OUT3 ├────┤
+                          │                       │    │   Motor B
+        ESP32 GPIO 33 ───►│ IN4              OUT4 ├────┘  (Derecho)
+                          │                       │
+                          │                       │
+        Batería + ───────►│ +12V (7-12V)          │
+        Batería - ───────►│ GND                   │
+        ESP32 GND ───────►│ GND (común)           │
+                          │                       │
+                          │ +5V (salida opcional) │◄──── Puede alimentar servo
+                          └───────────────────────┘
+
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                       CONEXIONES DEL SERVO                                 ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+                          ┌───────────────┐
+        ESP32 GPIO 13 ───►│ Señal (Naranja/Amarillo)
+                          │               │
+        ESP32 5V ────────►│ VCC   (Rojo)  │
+                          │               │
+        ESP32 GND ───────►│ GND   (Marrón/Negro)
+                          └───────────────┘
+                          
+        Nota: Si el servo consume mucho, alimentar desde L298N +5V
+
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                      TABLA RESUMEN DE PINES                                ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────┬─────────────┬────────────────────────────────────────────┐
+│ ESP32 Pin    │ Componente  │ Descripción                                │
+├──────────────┼─────────────┼────────────────────────────────────────────┤
+│ GPIO 2       │ Motor L298N │ IN1 - Motor A dirección                    │
+│ GPIO 4       │ Motor/LED   │ IN2 - Motor A dirección / LED Flash        │
+│ GPIO 13      │ Servo       │ Señal de control PWM                       │
+│ GPIO 25      │ Motor L298N │ ENA - Motor A velocidad (PWM)              │
+│ GPIO 26      │ Motor L298N │ ENB - Motor B velocidad (PWM)              │
+│ GPIO 32      │ Motor L298N │ IN3 - Motor B dirección                    │
+│ GPIO 33      │ Motor L298N │ IN4 - Motor B dirección                    │
+│ 5V           │ Alimentación│ Servo (si es pequeño)                      │
+│ GND          │ Común       │ Tierra común para todos los componentes    │
+└──────────────┴─────────────┴────────────────────────────────────────────┘
+
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    ESQUEMA DE ALIMENTACIÓN                                 ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+                        ┌──────────────┐
+                        │  Batería     │
+                        │  7-12V       │
+                        │  (2S Li-Po o │
+                        │   7x AA NiMH)│
+                        └──┬───────┬───┘
+                           │       │
+                           ├───────┼─────────┐
+                           │       │         │
+                          (+)     (-)       (-)
+                           │       │         │
+                     ┌─────▼───────▼─────┐   │
+                     │     L298N         │   │
+                     │                   │   │
+                     │  +5V out ─────────┼───┼──► Servo (opcional)
+                     │                   │   │
+                     └───────────────────┘   │
+                                             │
+                        ┌────────────────────┘
+                        │
+                    ┌───▼──────────┐
+                    │  Programador │
+                    │  FTDI / USB  │
+                    │  5V ────────►├─────► ESP32-CAM 5V
+                    │              │
+                    │  GND ───────►├─────► GND común
+                    └──────────────┘
+
+    Notas:
+    ✓ Siempre GND común entre todos los componentes
+    ✓ NO alimentar motores desde USB/ESP32
+    ✓ Batería separada para motores (alta corriente)
+    ✓ ESP32 puede alimentarse desde USB o batería regulada a 5V
+
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                TABLA DE MOVIMIENTOS DE MOTORES                             ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+┌────────────┬──────┬──────┬──────┬──────┬─────────────────────────────┐
+│ Movimiento │ IN1  │ IN2  │ IN3  │ IN4  │ Descripción                 │
+├────────────┼──────┼──────┼──────┼──────┼─────────────────────────────┤
+│ Avanzar    │ HIGH │ LOW  │ HIGH │ LOW  │ Ambos motores adelante      │
+│ Retroceder │ LOW  │ HIGH │ LOW  │ HIGH │ Ambos motores atrás         │
+│ Girar Izq. │ LOW  │ HIGH │ HIGH │ LOW  │ Motor A atrás, B adelante   │
+│ Girar Der. │ HIGH │ LOW  │ LOW  │ HIGH │ Motor A adelante, B atrás   │
+│ Detener    │ LOW  │ LOW  │ LOW  │ LOW  │ Todos los pines en LOW      │
+│            │      │      │      │      │ ENA=0, ENB=0                │
+└────────────┴──────┴──────┴──────┴──────┴─────────────────────────────┘
+
+    Velocidad controlada por ENA y ENB:
+    - PWM: 0-255 (0 = detenido, 255 = máxima velocidad)
+    - Default: 200 (78% velocidad máxima)
+
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                        CHECKLIST DE CONEXIONES                             ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+Antes de alimentar, verifica:
+
+□ 1. ESP32-CAM correctamente conectado al programador FTDI/USB
+□ 2. Cable GND común conectado entre ESP32, L298N y batería
+□ 3. Batería 7-12V conectada a L298N (+12V y GND)
+□ 4. Jumpers ENA y ENB del L298N QUITADOS
+□ 5. Motor A conectado a OUT1 y OUT2
+□ 6. Motor B conectado a OUT3 y OUT4
+□ 7. Pines IN1-IN4 conectados correctamente a ESP32
+□ 8. Pines ENA y ENB conectados a ESP32 GPIO 25 y 26
+□ 9. Servo conectado: Señal (GPIO 13), VCC (5V), GND
+□ 10. Polaridad de batería correcta (+ a +, - a -)
+□ 11. No hay cortocircuitos entre cables
+□ 12. Motores pueden girar libremente (no bloqueados)
+
+Después de subir el código:
+□ 13. Monitor serie muestra "Camera lista!" o similar
+□ 14. LED de ESP32 parpadea (actividad)
+□ 15. Red WiFi "ESP32-Control" visible
+□ 16. Puedes conectarte a 192.168.4.1 desde el navegador
+
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                       SOLUCIÓN DE PROBLEMAS                                ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+Síntoma: Motores no se mueven
+─────────────────────────────────
+  ✓ Verifica alimentación externa (batería) en L298N
+  ✓ Mide voltaje en +12V del L298N (debe ser 7-12V)
+  ✓ Asegura que jumpers ENA/ENB estén quitados
+  ✓ Revisa conexiones de pines IN1-IN4
+  ✓ Prueba conectar motores directamente a batería
+
+Síntoma: Cámara no funciona
+─────────────────────────────────
+  ✓ PSRAM debe estar habilitado en Arduino IDE
+  ✓ Partition Scheme: "Huge APP (3MB)"
+  ✓ Verifica modelo de placa (AI-THINKER)
+  ✓ Revisa pines de cámara no estén en uso
+  ✓ Intenta reducir resolución a QVGA
+
+Síntoma: No se crea red WiFi
+─────────────────────────────────
+  ✓ Espera 20 segundos después de encender
+  ✓ Verifica que password tenga mínimo 8 caracteres
+  ✓ Reinicia el ESP32 (desconecta y reconecta)
+  ✓ Chequea Monitor Serie para errores
+
+Síntoma: Servo no responde
+─────────────────────────────────
+  ✓ Librería ESP32Servo instalada correctamente
+  ✓ Pin GPIO 13 conectado a señal del servo
+  ✓ Servo tiene alimentación (5V y GND)
+  ✓ Prueba con otro servo (puede estar dañado)
+
+Síntoma: ESP32 se reinicia solo
+─────────────────────────────────
+  ✓ Fuente de alimentación insuficiente
+  ✓ Cortocircuito en algún pin
+  ✓ Motores/servo consumen demasiado del ESP32
+  ✓ Usa alimentación externa para motores
+
+
+═══════════════════════════════════════════════════════════════════════════
+                          ¡Listo para funcionar!
+═══════════════════════════════════════════════════════════════════════════
+```
