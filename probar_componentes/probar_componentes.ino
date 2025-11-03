@@ -1,15 +1,4 @@
-/*
- * ESP32 Unified Control System
- * 
- * Este código integra todas las funcionalidades de prueba en un único programa
- * con interfaz web HTML para controlar:
- * - LED Flash
- * - Motores DC (Puente H L298N)
- * - Servo Motor
- * - Cámara Web (Streaming)
- * Fecha: Noviembre 2025
- */
-
+#include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESP32Servo.h>
@@ -24,31 +13,21 @@ const char* ap_password = "12345678";
 // ===========================
 // Configuración de Pines
 // ===========================
-
-// LED Flash
 #define LED_PIN 4
+const int motor1Pin1 = 14;  // IN1
+const int motor1Pin2 = 15;  // IN2
+const int motor2Pin1 = 13;  // IN3
+const int motor2Pin2 = 12;  // IN4
+#define SERVO_PIN 2
 
-// Motores DC (Puente H L298N)
-const int motor1Pin1 = 2;   // IN1
-const int motor1Pin2 = 4;   // IN2 (ojo: compartido con LED, ajustar si es necesario)
-const int motor2Pin1 = 32;  // IN3
-const int motor2Pin2 = 33;  // IN4
-const int enableAPin = 25;  // ENA (PWM Motor A)
-const int enableBPin = 26;  // ENB (PWM Motor B)
-
-// Servo Motor
-#define SERVO_PIN 13
-
-// PWM Configuration para motores
-const int motorFreq = 5000;
-const int motorResolution = 8;
-const int motorChannelA = 0;
-const int motorChannelB = 1;
+// ===========================
+// Servidores Web
+// ===========================
+WebServer server(80);           // Servidor para controles (Core 1)
+WebServer streamServer(81);     // Servidor para video (Core 0) 
 
 // Variables globales
-WebServer server(80);
 Servo myServo;
-int motorSpeed = 200;  // Velocidad por defecto (0-255)
 bool ledState = false;
 int servoPosition = 90;
 bool cameraInitialized = false;
@@ -62,7 +41,7 @@ bool cameraInitialized = false;
 // ===========================
 // HTML de la Interfaz Web
 // ===========================
-const char HTML_PAGE[] PROGMEM = R"rawliteral(
+const char HTML_PAGE_TEMPLATE[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html>
 <head>
@@ -177,6 +156,7 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
             width: 100%;
             border-radius: 10px;
             margin-top: 15px;
+            background-color: #333; 
         }
         .status-indicator {
             display: inline-block;
@@ -199,7 +179,7 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
         <h1>🎛️ ESP32 Control Panel</h1>
         
         <div class="control-grid">
-            <!-- LED Control -->
+            
             <div class="card">
                 <h2>💡 LED Control</h2>
                 <button class="btn btn-success" onclick="controlLED('on')">Encender LED</button>
@@ -210,7 +190,6 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
                 </div>
             </div>
 
-            <!-- Motor Control -->
             <div class="card">
                 <h2>🚗 Control de Motores</h2>
                 <button class="btn btn-primary" onclick="controlMotor('forward')">⬆️ Avanzar</button>
@@ -218,33 +197,27 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
                 <button class="btn btn-info" onclick="controlMotor('right')">➡️ Girar Der.</button>
                 <button class="btn btn-warning" onclick="controlMotor('backward')">⬇️ Retroceder</button>
                 <button class="btn btn-danger" onclick="controlMotor('stop')">⏹️ Detener</button>
-                
-                <div class="slider-container">
-                    <label>Velocidad: <span id="speedValue">200</span></label>
-                    <input type="range" min="0" max="255" value="200" id="speedSlider" 
-                           onchange="setMotorSpeed(this.value)">
-                </div>
             </div>
 
-            <!-- Servo Control -->
             <div class="card">
                 <h2>🎚️ Control de Servo</h2>
                 <div class="slider-container">
                     <label>Posición (grados)</label>
                     <div class="value-display" id="servoValue">90°</div>
                     <input type="range" min="0" max="180" value="90" id="servoSlider" 
-                           oninput="updateServoDisplay(this.value)"
-                           onchange="setServoPosition(this.value)">
+                            oninput="updateServoDisplay(this.value)"
+                            onchange="setServoPosition(this.value)">
                 </div>
                 <button class="btn btn-primary" onclick="setServoPosition(0)">0°</button>
                 <button class="btn btn-primary" onclick="setServoPosition(90)">90°</button>
                 <button class="btn btn-primary" onclick="setServoPosition(180)">180°</button>
             </div>
-
-            <!-- Camera Streaming -->
             <div class="card camera-container">
                 <h2>📹 Cámara en Vivo</h2>
-                <img src="/stream" class="camera-view" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22640%22 height=%22480%22><rect width=%22640%22 height=%22480%22 fill=%22%23ddd%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22Arial%22 font-size=%2224%22>Cámara no disponible</text></svg>'">
+                <img src="%%STREAM_URL%%" class="camera-view" onerror="this.style.display='none'; document.getElementById('camError').style.display='block';">
+                <div id="camError" style="display:none; text-align:center; padding: 20px; color: #f56565; font-weight: bold;">
+                    Error al cargar el stream de la cámara.
+                </div>
             </div>
         </div>
     </div>
@@ -253,10 +226,6 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
         // Update displays
         function updateServoDisplay(value) {
             document.getElementById('servoValue').textContent = value + '°';
-        }
-        
-        document.getElementById('speedSlider').oninput = function() {
-            document.getElementById('speedValue').textContent = this.value;
         }
 
         // LED Control
@@ -283,12 +252,6 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
                 .then(data => console.log(data));
         }
 
-        function setMotorSpeed(speed) {
-            fetch('/motor?speed=' + speed)
-                .then(response => response.text())
-                .then(data => console.log(data));
-        }
-
         // Servo Control
         function setServoPosition(position) {
             document.getElementById('servoSlider').value = position;
@@ -300,7 +263,14 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
 
         // Initialize
         window.onload = function() {
-            controlLED('off');
+            // Setea el estado inicial del LED como apagado
+            const status = document.getElementById('ledStatus');
+            const text = document.getElementById('ledText');
+            status.className = 'status-indicator status-off';
+            text.textContent = 'Apagado';
+            
+            // Setea el estado inicial del servo
+            updateServoDisplay(document.getElementById('servoSlider').value);
         }
     </script>
 </body>
@@ -327,24 +297,23 @@ void setupCamera() {
     config.pin_pclk = PCLK_GPIO_NUM;
     config.pin_vsync = VSYNC_GPIO_NUM;
     config.pin_href = HREF_GPIO_NUM;
-    config.pin_sccb_sda = SIOD_GPIO_NUM;
-    config.pin_sccb_scl = SIOC_GPIO_NUM;
+    config.pin_sscb_sda = SIOD_GPIO_NUM;
+    config.pin_sscb_scl = SIOC_GPIO_NUM;
     config.pin_pwdn = PWDN_GPIO_NUM;
     config.pin_reset = RESET_GPIO_NUM;
     config.xclk_freq_hz = 20000000;
-    config.frame_size = FRAMESIZE_VGA;
     config.pixel_format = PIXFORMAT_JPEG;
-    config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
-    config.fb_location = CAMERA_FB_IN_PSRAM;
-    config.jpeg_quality = 12;
-    config.fb_count = 1;
-
+    
+    // <-- CAMBIO EN LA LÓGICA DE PSRAM
     if (psramFound()) {
+        config.frame_size = FRAMESIZE_VGA; 
         config.jpeg_quality = 10;
-        config.fb_count = 2;
+        config.fb_count = 2; 
         config.grab_mode = CAMERA_GRAB_LATEST;
     } else {
-        config.frame_size = FRAMESIZE_SVGA;
+        config.frame_size = FRAMESIZE_QVGA; 
+        config.jpeg_quality = 12;
+        config.fb_count = 1; 
         config.fb_location = CAMERA_FB_IN_DRAM;
     }
 
@@ -355,8 +324,6 @@ void setupCamera() {
         return;
     }
     
-    sensor_t *s = esp_camera_sensor_get();
-    s->set_framesize(s, FRAMESIZE_VGA);
     
     cameraInitialized = true;
     Serial.println("Cámara inicializada correctamente");
@@ -367,91 +334,60 @@ void handleLED() {
     if (server.hasArg("action")) {
         String action = server.arg("action");
         if (action == "on") {
-            digitalWrite(LED_PIN, HIGH);
+            digitalWrite(LED_PIN, HIGH); 
             ledState = true;
             server.send(200, "text/plain", "LED Encendido");
         } else if (action == "off") {
-            digitalWrite(LED_PIN, LOW);
+            digitalWrite(LED_PIN, LOW); 
             ledState = false;
             server.send(200, "text/plain", "LED Apagado");
         }
     }
 }
 
-// Control de Motores
-void motorForward() {
+ void motorForward() {
     digitalWrite(motor1Pin1, HIGH);
     digitalWrite(motor1Pin2, LOW);
     digitalWrite(motor2Pin1, HIGH);
     digitalWrite(motor2Pin2, LOW);
-    ledcWrite(motorChannelA, motorSpeed);
-    ledcWrite(motorChannelB, motorSpeed);
 }
-
 void motorBackward() {
     digitalWrite(motor1Pin1, LOW);
     digitalWrite(motor1Pin2, HIGH);
     digitalWrite(motor2Pin1, LOW);
     digitalWrite(motor2Pin2, HIGH);
-    ledcWrite(motorChannelA, motorSpeed);
-    ledcWrite(motorChannelB, motorSpeed);
 }
-
 void motorLeft() {
     digitalWrite(motor1Pin1, LOW);
     digitalWrite(motor1Pin2, HIGH);
     digitalWrite(motor2Pin1, HIGH);
     digitalWrite(motor2Pin2, LOW);
-    ledcWrite(motorChannelA, motorSpeed);
-    ledcWrite(motorChannelB, motorSpeed);
 }
-
 void motorRight() {
     digitalWrite(motor1Pin1, HIGH);
     digitalWrite(motor1Pin2, LOW);
     digitalWrite(motor2Pin1, LOW);
     digitalWrite(motor2Pin2, HIGH);
-    ledcWrite(motorChannelA, motorSpeed);
-    ledcWrite(motorChannelB, motorSpeed);
 }
-
 void motorStop() {
     digitalWrite(motor1Pin1, LOW);
     digitalWrite(motor1Pin2, LOW);
     digitalWrite(motor2Pin1, LOW);
     digitalWrite(motor2Pin2, LOW);
-    ledcWrite(motorChannelA, 0);
-    ledcWrite(motorChannelB, 0);
-}
+} 
 
 void handleMotor() {
     if (server.hasArg("action")) {
         String action = server.arg("action");
-        if (action == "forward") {
-            motorForward();
-            server.send(200, "text/plain", "Avanzando");
-        } else if (action == "backward") {
-            motorBackward();
-            server.send(200, "text/plain", "Retrocediendo");
-        } else if (action == "left") {
-            motorLeft();
-            server.send(200, "text/plain", "Girando Izquierda");
-        } else if (action == "right") {
-            motorRight();
-            server.send(200, "text/plain", "Girando Derecha");
-        } else if (action == "stop") {
-            motorStop();
-            server.send(200, "text/plain", "Detenido");
-        }
-    }
-    
-    if (server.hasArg("speed")) {
-        motorSpeed = server.arg("speed").toInt();
-        server.send(200, "text/plain", "Velocidad ajustada: " + String(motorSpeed));
+        if (action == "forward") motorForward();
+        if (action == "backward") motorBackward();
+        if (action == "left") motorLeft();
+        if (action == "right") motorRight();
+        if (action == "stop") motorStop();
+        server.send(200, "text/plain", "Motor: " + action);
     }
 }
 
-// Control de Servo
 void handleServo() {
     if (server.hasArg("position")) {
         servoPosition = server.arg("position").toInt();
@@ -460,14 +396,22 @@ void handleServo() {
     }
 }
 
-// Streaming de Cámara
+void handleRoot() {
+    String html = HTML_PAGE_TEMPLATE;
+    
+    String streamURL = "http://" + WiFi.softAPIP().toString() + ":81/stream";
+    html.replace("%%STREAM_URL%%", streamURL);
+    
+    server.send(200, "text/html", html);
+}
+
 void handleStream() {
     if (!cameraInitialized) {
-        server.send(503, "text/plain", "Cámara no disponible");
+        streamServer.send(503, "text/plain", "Cámara no disponible");
         return;
     }
 
-    WiFiClient client = server.client();
+    WiFiClient client = streamServer.client(); 
     
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: multipart/x-mixed-replace; boundary=frame");
@@ -494,17 +438,26 @@ void handleStream() {
     }
 }
 
-// Página Principal
-void handleRoot() {
-    server.send_P(200, "text/html", HTML_PAGE);
+// ===================================
+// <-- NÚCLEO 0 -->
+// ===================================
+void streamTask(void *pvParameters) {
+    streamServer.on("/stream", handleStream);
+    streamServer.begin();
+    Serial.println("Servidor de Streaming iniciado en Núcleo 0 (Puerto 81)");
+
+    for (;;) {
+        streamServer.handleClient();
+        vTaskDelay(1); 
+    }
 }
 
 // ===========================
-// Setup
+// Setup (Corre en Núcleo 1)
 // ===========================
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n\nIniciando ESP32 Unified Control System...");
+    Serial.println("\n\nIniciando ESP32 Unified Control System (Doble Núcleo)...");
 
     // Configurar LED
     pinMode(LED_PIN, OUTPUT);
@@ -515,12 +468,6 @@ void setup() {
     pinMode(motor1Pin2, OUTPUT);
     pinMode(motor2Pin1, OUTPUT);
     pinMode(motor2Pin2, OUTPUT);
-    
-    ledcSetup(motorChannelA, motorFreq, motorResolution);
-    ledcSetup(motorChannelB, motorFreq, motorResolution);
-    ledcAttachPin(enableAPin, motorChannelA);
-    ledcAttachPin(enableBPin, motorChannelB);
-    
     motorStop();
 
     // Configurar Servo
@@ -538,31 +485,39 @@ void setup() {
     Serial.print("IP del Access Point: ");
     Serial.println(IP);
 
-    // Configurar rutas del servidor web
+    // Configurar rutas del servidor web (Núcleo 1)
     server.on("/", handleRoot);
     server.on("/led", handleLED);
     server.on("/motor", handleMotor);
     server.on("/servo", handleServo);
-    server.on("/stream", handleStream);
 
-    // Iniciar servidor
+    // Iniciar servidor de controles
     server.begin();
-    Serial.println("Servidor Web iniciado!");
+    Serial.println("Servidor Web (Controles) iniciado en Núcleo 1 (Puerto 80)");
+
+    // Iniciar la tarea de streaming en el Núcleo 0
+    xTaskCreatePinnedToCore(
+        streamTask,         // Función de la tarea
+        "StreamTask",       // Nombre de la tarea
+        4096,               // Tamaño de la pila (stack)
+        NULL,               // Parámetros de la tarea
+        1,                  // Prioridad
+        NULL,               // Handle de la tarea (opcional)
+        0                   // Núcleo 0
+    );
+
     Serial.println("====================================");
-    Serial.println("Conéctate a la red WiFi:");
-    Serial.print("  SSID: ");
-    Serial.println(ap_ssid);
-    Serial.print("  Password: ");
-    Serial.println(ap_password);
-    Serial.println("Luego abre en tu navegador:");
-    Serial.print("  http://");
-    Serial.println(IP);
+    Serial.println("Sistema listo. Conéctate a la red:");
+    Serial.print("   SSID: "); Serial.println(ap_ssid);
+    Serial.println("Abre en tu navegador:");
+    Serial.print("   http://"); Serial.println(IP);
     Serial.println("====================================");
 }
 
 // ===========================
-// Loop
+// Loop (Corre en Núcleo 1)
 // ===========================
 void loop() {
+    // El loop principal solo maneja el servidor de controles
     server.handleClient();
 }
