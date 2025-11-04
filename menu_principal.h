@@ -110,14 +110,11 @@ const char MENU_STYLE_TERMINAL[] PROGMEM = R"=====(
             <div class="subtitle">ESP32-CAM ROBOT SYSTEM v2.0</div>
         </div>
         
-        <div class="prompt">SELECCIONA UNA OPCIÓN:</div>
+        <div class="prompt">ACCESO AL SISTEMA:</div>
         
         <div class="menu-options">
-            <a href="/probar" class="menu-button">
-                <span class="number">[1]</span> PROBAR COMPONENTES
-            </a>
             <a href="/robot" class="menu-button">
-                <span class="number">[2]</span> CONTROLAR ROBOT
+                <span class="number">[●]</span> CONTROLAR ROBOT
             </a>
         </div>
         
@@ -266,15 +263,6 @@ const char MENU_STYLE_MODERN[] PROGMEM = R"=====(
         </div>
         
         <div class="cards-container">
-            <a href="/probar" class="card">
-                <span class="card-icon">🔧</span>
-                <div class="card-title">Probar Componentes</div>
-                <div class="card-description">
-                    Prueba individual de LED, motores, servo y cámara. 
-                    Ideal para diagnóstico y verificación del sistema.
-                </div>
-            </a>
-            
             <a href="/robot" class="card">
                 <span class="card-icon">🤖</span>
                 <div class="card-title">Controlar Robot</div>
@@ -454,14 +442,6 @@ const char MENU_STYLE_CAMPUS[] PROGMEM = R"=====(
         <div class="divider"></div>
         
         <div class="options-grid">
-            <a href="/probar" class="option-card">
-                <div class="option-icon">⚙️</div>
-                <div class="option-title">Probar</div>
-                <div class="option-desc">
-                    Modo diagnóstico de componentes individuales
-                </div>
-            </a>
-            
             <a href="/robot" class="option-card">
                 <div class="option-icon">🎮</div>
                 <div class="option-title">Controlar</div>
