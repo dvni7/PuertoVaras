@@ -4,6 +4,11 @@
 #include <ESP32Servo.h>
 #include "esp_camera.h"
 
+// ===========================
+// Incluir los HTMLs
+// ===========================
+#include "menu_principal.h"
+#include "robot_control.h"
 
 // ===========================
 // Configuración WiFi (Access Point)
@@ -33,6 +38,9 @@ bool ledState = false;
 int servoPosition = 90;
 bool cameraInitialized = false;
 
+// Variable para elegir el estilo del menú (1=Terminal, 2=Modern, 3=Campus)
+#define MENU_STYLE 3  // <-- CAMBIA ESTE NÚMERO PARA ELEGIR EL ESTILO (1, 2 o 3)
+
 // ===========================
 // Configuración de la Cámara
 // ===========================
@@ -40,9 +48,9 @@ bool cameraInitialized = false;
 #include "camera_pins.h"
 
 // ===========================
-// HTML de la Interfaz Web
+// HTML de la Interfaz de Prueba de Componentes
 // ===========================
-const char HTML_PAGE_TEMPLATE[] PROGMEM = R"rawliteral(
+const char PROBAR_COMPONENTES_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html>
 <head>
@@ -64,6 +72,22 @@ const char HTML_PAGE_TEMPLATE[] PROGMEM = R"rawliteral(
         .container {
             max-width: 1200px;
             margin: 0 auto;
+        }
+        .back-button {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid white;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
         }
         h1 {
             text-align: center;
@@ -177,6 +201,7 @@ const char HTML_PAGE_TEMPLATE[] PROGMEM = R"rawliteral(
 </head>
 <body>
     <div class="container">
+        <a href="/" class="back-button">← Volver al Menú</a>
         <h1>🎛️ ESP32 Control Panel</h1>
         
         <div class="control-grid">
@@ -264,13 +289,10 @@ const char HTML_PAGE_TEMPLATE[] PROGMEM = R"rawliteral(
 
         // Initialize
         window.onload = function() {
-            // Setea el estado inicial del LED como apagado
             const status = document.getElementById('ledStatus');
             const text = document.getElementById('ledText');
             status.className = 'status-indicator status-off';
             text.textContent = 'Apagado';
-            
-            // Setea el estado inicial del servo
             updateServoDisplay(document.getElementById('servoSlider').value);
         }
     </script>
@@ -305,7 +327,6 @@ void setupCamera() {
     config.xclk_freq_hz = 20000000;
     config.pixel_format = PIXFORMAT_JPEG;
     
-    // <-- CAMBIO EN LA LÓGICA DE PSRAM
     if (psramFound()) {
         config.frame_size = FRAMESIZE_VGA; 
         config.jpeg_quality = 10;
@@ -324,7 +345,6 @@ void setupCamera() {
         cameraInitialized = false;
         return;
     }
-    
     
     cameraInitialized = true;
     Serial.println("Cámara inicializada correctamente");
@@ -346,36 +366,40 @@ void handleLED() {
     }
 }
 
- void motorForward() {
-    digitalWrite(motor1Pin1, HIGH);
-    digitalWrite(motor1Pin2, LOW);
+void motorForward() {
+    digitalWrite(motor1Pin1, LOW);
+    digitalWrite(motor1Pin2, HIGH);
     digitalWrite(motor2Pin1, HIGH);
     digitalWrite(motor2Pin2, LOW);
 }
+
 void motorBackward() {
-    digitalWrite(motor1Pin1, LOW);
-    digitalWrite(motor1Pin2, HIGH);
-    digitalWrite(motor2Pin1, LOW);
-    digitalWrite(motor2Pin2, HIGH);
-}
-void motorLeft() {
-    digitalWrite(motor1Pin1, LOW);
-    digitalWrite(motor1Pin2, HIGH);
-    digitalWrite(motor2Pin1, HIGH);
-    digitalWrite(motor2Pin2, LOW);
-}
-void motorRight() {
     digitalWrite(motor1Pin1, HIGH);
     digitalWrite(motor1Pin2, LOW);
     digitalWrite(motor2Pin1, LOW);
     digitalWrite(motor2Pin2, HIGH);
 }
+
+void motorLeft() { 
+    digitalWrite(motor1Pin1, HIGH);
+    digitalWrite(motor1Pin2, LOW);
+    digitalWrite(motor2Pin1, HIGH);
+    digitalWrite(motor2Pin2, LOW);
+}
+
+void motorRight() { 
+    digitalWrite(motor1Pin1, LOW);
+    digitalWrite(motor1Pin2, HIGH);
+    digitalWrite(motor2Pin1, LOW);
+    digitalWrite(motor2Pin2, HIGH);
+}
+
 void motorStop() {
     digitalWrite(motor1Pin1, LOW);
     digitalWrite(motor1Pin2, LOW);
     digitalWrite(motor2Pin1, LOW);
     digitalWrite(motor2Pin2, LOW);
-} 
+}
 
 void handleMotor() {
     if (server.hasArg("action")) {
@@ -397,15 +421,37 @@ void handleServo() {
     }
 }
 
+// Handler del menú principal (raíz)
 void handleRoot() {
-    String html = HTML_PAGE_TEMPLATE;
+    String menuHTML;
     
+    // Seleccionar el estilo de menú según la configuración
+    #if MENU_STYLE == 1
+        menuHTML = FPSTR(MENU_STYLE_TERMINAL);
+    #elif MENU_STYLE == 2
+        menuHTML = FPSTR(MENU_STYLE_MODERN);
+    #else
+        menuHTML = FPSTR(MENU_STYLE_CAMPUS);
+    #endif
+    
+    server.send(200, "text/html", menuHTML);
+}
+
+// Handler de la página de prueba de componentes
+void handleProbar() {
+    String html = FPSTR(PROBAR_COMPONENTES_HTML);
     String streamURL = "http://" + WiFi.softAPIP().toString() + ":81/stream";
     html.replace("%%STREAM_URL%%", streamURL);
-    
     server.send(200, "text/html", html);
 }
 
+// Handler de la página de control del robot
+void handleRobot() {
+    String html = FPSTR(ROBOT_CONTROL_HTML);
+    server.send(200, "text/html", html);
+}
+
+// Handler del streaming de video
 void handleStream() {
     if (!cameraInitialized) {
         streamServer.send(503, "text/plain", "Cámara no disponible");
@@ -440,7 +486,7 @@ void handleStream() {
 }
 
 // ===================================
-// <-- NÚCLEO 0 -->
+// TAREA PARA EL NÚCLEO 0 (Streaming)
 // ===================================
 void streamTask(void *pvParameters) {
     streamServer.on("/stream", handleStream);
@@ -458,7 +504,9 @@ void streamTask(void *pvParameters) {
 // ===========================
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n\nIniciando ESP32 Unified Control System (Doble Núcleo)...");
+    Serial.println("\n\n╔════════════════════════════════════════════╗");
+    Serial.println("║   MAKER CAMPUS - ESP32 ROBOT SYSTEM v2.0  ║");
+    Serial.println("╚════════════════════════════════════════════╝\n");
 
     // Configurar LED
     pinMode(LED_PIN, OUTPUT);
@@ -479,22 +527,24 @@ void setup() {
     setupCamera();
 
     // Configurar WiFi en modo AP
-    Serial.println("Configurando Access Point...");
+    Serial.println("→ Configurando Access Point...");
     WiFi.softAP(ap_ssid, ap_password);
     
     IPAddress IP = WiFi.softAPIP();
-    Serial.print("IP del Access Point: ");
+    Serial.print("→ IP del Access Point: ");
     Serial.println(IP);
 
     // Configurar rutas del servidor web (Núcleo 1)
-    server.on("/", handleRoot);
-    server.on("/led", handleLED);
-    server.on("/motor", handleMotor);
-    server.on("/servo", handleServo);
+    server.on("/", handleRoot);              // Menú principal
+    server.on("/probar", handleProbar);      // Interfaz de prueba
+    server.on("/robot", handleRobot);        // Interfaz de control del robot
+    server.on("/led", handleLED);            // Endpoint LED
+    server.on("/motor", handleMotor);        // Endpoint Motor
+    server.on("/servo", handleServo);        // Endpoint Servo
 
     // Iniciar servidor de controles
     server.begin();
-    Serial.println("Servidor Web (Controles) iniciado en Núcleo 1 (Puerto 80)");
+    Serial.println("→ Servidor Web iniciado en Núcleo 1 (Puerto 80)");
 
     // Iniciar la tarea de streaming en el Núcleo 0
     xTaskCreatePinnedToCore(
@@ -507,12 +557,21 @@ void setup() {
         0                   // Núcleo 0
     );
 
-    Serial.println("====================================");
-    Serial.println("Sistema listo. Conéctate a la red:");
-    Serial.print("   SSID: "); Serial.println(ap_ssid);
-    Serial.println("Abre en tu navegador:");
-    Serial.print("   http://"); Serial.println(IP);
-    Serial.println("====================================");
+    Serial.println("\n╔════════════════════════════════════════════╗");
+    Serial.println("║          SISTEMA LISTO Y OPERATIVO         ║");
+    Serial.println("╠════════════════════════════════════════════╣");
+    Serial.print("║  SSID: ");
+    Serial.print(ap_ssid);
+    Serial.println("                            ║");
+    Serial.print("║  URL:  http://");
+    Serial.print(IP);
+    Serial.println("               ║");
+    Serial.println("║                                            ║");
+    Serial.println("║  Rutas disponibles:                        ║");
+    Serial.println("║    /       → Menú Principal                ║");
+    Serial.println("║    /probar → Probar Componentes            ║");
+    Serial.println("║    /robot  → Controlar Robot               ║");
+    Serial.println("╚════════════════════════════════════════════╝\n");
 }
 
 // ===========================
