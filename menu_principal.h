@@ -12,10 +12,9 @@ const char MENU_STYLE_TERMINAL[] PROGMEM = R"=====(
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ESP32-CAM - Maker Campus</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Share Tech Mono', monospace;
+            font-family: 'Courier New', Courier, monospace;
             background: #0F0701;
             color: #FF6B35;
             min-height: 100vh;
@@ -139,10 +138,9 @@ const char MENU_STYLE_MODERN[] PROGMEM = R"=====(
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ESP32-CAM - Maker Campus</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Poppins', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
             background: linear-gradient(135deg, #0F0701 0%, #1a0f05 50%, #0F0701 100%);
             min-height: 100vh;
             display: flex;
@@ -304,10 +302,9 @@ const char MENU_STYLE_CAMPUS[] PROGMEM = R"=====(
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ESP32-CAM - Maker Campus</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Orbitron', sans-serif;
+            font-family: Impact, 'Arial Black', Arial, sans-serif;
             background: #0F0701;
             color: white;
             min-height: 100vh;
@@ -446,12 +443,12 @@ const char MENU_STYLE_CAMPUS[] PROGMEM = R"=====(
     </style>
 </head>
 <body>
-    <div class="top-bar">MAKER CAMPUS - INNOVATION LAB</div>
+    <div class="top-bar">MAKER CAMPUS - PUERTO VARAS</div>
     
     <div class="main-container">
         <div class="logo-section">
             <h1>MAKER CAMPUS</h1>
-            <div class="tagline">ROBOT CONTROL</div>
+            <div class="tagline">Exploradores del Universo</div>
         </div>
         
         <div class="divider"></div>
@@ -475,7 +472,7 @@ const char MENU_STYLE_CAMPUS[] PROGMEM = R"=====(
         </div>
         
         <div class="info-panel">
-            <strong>ESP32-CAM</strong> | Puerto Varas Project | Firmware v2.0
+            <strong>Maker Campus</strong> | Puerto Varas Project 
         </div>
     </div>
 </body>

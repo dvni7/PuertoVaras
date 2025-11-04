@@ -4,7 +4,7 @@
 
 En `PuertoVaras.ino`, línea 28:
 ```cpp
-#define MENU_STYLE 3  // <-- Cambia este número (1, 2 o 3)
+#define MENU_STYLE 2  // <-- Cambia este número (1, 2 o 3)
 ```
 
 ---

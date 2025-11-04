@@ -13,7 +13,7 @@
 // ===========================
 // Configuración WiFi (Access Point)
 // ===========================
-const char* ap_ssid = "ESP32-04";
+const char* ap_ssid = "ESP32-Ejemplo";
 const char* ap_password = "12345678";
 
 // ===========================
@@ -328,13 +328,13 @@ void setupCamera() {
     config.pixel_format = PIXFORMAT_JPEG;
     
     if (psramFound()) {
-        config.frame_size = FRAMESIZE_VGA; 
-        config.jpeg_quality = 10;
-        config.fb_count = 2; 
+        config.frame_size = FRAMESIZE_CIF;  // Optimizado: 400x296 (era VGA 640x480)
+        config.jpeg_quality = 15;           // Optimizado: Mayor compresión (era 10)
+        config.fb_count = 1;                // Optimizado: Menos buffers (era 2) - PROBAR
         config.grab_mode = CAMERA_GRAB_LATEST;
     } else {
         config.frame_size = FRAMESIZE_QVGA; 
-        config.jpeg_quality = 12;
+        config.jpeg_quality = 15;           // Optimizado: Mayor compresión (era 12)
         config.fb_count = 1; 
         config.fb_location = CAMERA_FB_IN_DRAM;
     }
@@ -482,6 +482,9 @@ void handleStream() {
         esp_camera_fb_return(fb);
         
         if (!client.connected()) break;
+        
+        // Optimizado: Delay para liberar CPU (~25 FPS)
+        delay(40);
     }
 }
 

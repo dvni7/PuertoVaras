@@ -11,10 +11,9 @@ const char ROBOT_CONTROL_HTML[] PROGMEM = R"=====(
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Control Robot - Maker Campus</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
-            font-family: 'Share Tech Mono', monospace;
+            font-family: 'Courier New', Courier, monospace;
             background: rgb(15, 7, 1);
             color: rgb(255, 174, 0);
             min-height: 100vh;
